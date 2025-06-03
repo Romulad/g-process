@@ -1,0 +1,371 @@
+# Gunicorn server
+
+## Classes structure
+
+Structure used (from parent to child classes): 
+`gunicorn.app.base.BaseApplication` -> `gunicorn.app.base.Application` -> `gunicorn.app.wsgiapp.WSGIApplication`
+
+**Note**: `WsgiAppInstance` is an instance of `gunicorn.app.wsgiapp.WSGIApplication`.
+
+## Execution flow
+
+1 - From : `gunicorn [OPTIONS] [APP_MODULE]` with `WSGIApplication` as base class
+and subclasse of `Application`
+
+2 - `gunicorn.app.wsgiapp.WSGIApplication` initialization
+
+3 - After WSGIApplication initialization we enter in `gunicorn.app.base.BaseApplication` `__init__` method
+
+4 - In `gunicorn.app.base.BaseApplication` `__init__` method, these variables are initialize:
+- `usage`:
+    - `usage` is the cmd line interface usage message like `gunicorn [OPTIONS] [APP_MODULE]`
+- `cfg`:
+    - this variable will contain the config object from `gunicorn.config.Config`,
+- `callable`:
+    - use to store the wsgi application callable, the one that accept `environ` and `start_response` as arg
+- `prog`:
+    - this store the program name or the file from where the program start like `gunicorn` when
+    running the `gunicorn` command directly. Use in `usage` for cmd line interface
+- `logger`:
+    - the logger that will be use for logging in the application
+
+These variables are initialize on the `WSGIApplication` class instance. `WsgiAppInstance` state become:
+- `WsgiAppInstance.usage` = `%(prog)s [OPTIONS] [APP_MODULE]`
+- `WsgiAppInstance.cfg` = `None`
+- `WsgiAppInstance.callable` = `None`
+- `WsgiAppInstance.prog` = `prog`
+- `WsgiAppInstance.logger` = `None`
+
+After the variables set on `WsgiAppInstance`, the method `do_load_config` is called. It available
+on `gunicorn.app.base.BaseApplication` and it is responsible of initialize/loading 
+the app configs/settings
+
+5 - From `gunicorn.app.base.BaseApplication` `__init__` calle to `do_load_config` trigger two method
+- `load_default_config` from `gunicorn.app.base.BaseApplication`
+- `load_config` from `gunicorn.app.base.BaseApplication` but need to be implemented by the child class
+which is in our case the `WsgiAppInstance`
+
+6 - `load_default_config` update the instance variable `cfg` on the `WsgiAppInstance` to be an
+instance of `gunicorn.config.Config`. The `Config` class load all gunicorn default and accepted 
+config. So after calle to `load_default_config` method the `WsgiAppInstance` become:
+- `WsgiAppInstance.usage` = `%(prog)s [OPTIONS] [APP_MODULE]`
+- `WsgiAppInstance.cfg` = `Config(WsgiAppInstance.usage, WsgiAppInstance.prog)`
+- `WsgiAppInstance.callable` = `None`
+- `WsgiAppInstance.prog` = `prog`
+- `WsgiAppInstance.logger` = `None`
+
+The `Config` instance store in the `WsgiAppInstance.cfg` will have as instance attrs:
+- `settings`:
+    - It is the settings object containing the list of config/setting available in
+    gunicorn. It is a dict with key the name of the setting like `bind` and as value a class
+    object instance representing the config like an instance of `gunicorn.config.Bind`. Those classes are
+    automatically registered using python metaclasse.
+- `usage`:
+    - `usage` string passed to the `Config` classe
+- `prog`: 
+    - `prog` passe to th `Config` classe if exists or `os.path.basename(sys.argv[0])` is set
+- `env_orig`:
+    - contain copy of the current environment variables
+
+So after the `Config` classe initialization our `WsgiAppInstance` state become:
+- `WsgiAppInstance.usage` = `%(prog)s [OPTIONS] [APP_MODULE]`
+- `WsgiAppInstance.cfg` = `Config(WsgiAppInstance.usage, WsgiAppInstance.prog)`
+- `WsgiAppInstance.cfg.settings` = `dict containing list of gunicorn config`
+- `WsgiAppInstance.cfg.usage` = `%(prog)s [OPTIONS] [APP_MODULE]`
+- `WsgiAppInstance.cfg.prog` = `program file name`
+- `WsgiAppInstance.cfg.env_orig` = `current env variables copy with os.environ.copy()`
+- `WsgiAppInstance.callable` = `None`
+- `WsgiAppInstance.prog` = `prog`
+- `WsgiAppInstance.logger` = `None`
+
+7 - Then `load_config` is called in the `do_load_config` method from `gunicorn.app.base.BaseApplication` `__init__`. 
+Gunicorn say: 
+```text
+    This method is used to load the configuration from one or several input(s).
+    Custom Command line, configuration file. You have to override this method in your class.
+```
+This method is used to load/validate and set user provided config. If the child overriding the method doesn't change anything then Gunicorn default config will be used. Our `WsgiAppInstance` classe implement the `load_config` and in it, it calls `super().load_config()` with additional check after super calle. Here
+super object is `gunicorn.app.base.Application` which implement the `load_config` method too.
+
+[Remember our tree](#classes-structure)
+
+So what does `load_config` do?
+
+- Get the default cli arg parser which is dynamically construct to include all available and supported 
+gunicorn settings/cli-options. Gunicorn use python bulltin `argparse`.
+- call a optional `init` method of the child classe to let it apply custom logique, based on the `parser` 
+and `argument` and optionally return a dict object (can be none)  containing config that should be override or set. e.g. Our `WsgiAppInstance` `init` method set the wsgi app callable path, the one you set with
+`module:callable` in the cli; the path is set in an attribute called `app_uri`.
+- gunicorn then check for config from diffrent possible user provided source 
+(lower-priority to higher-priority):
+    - Environment Variables
+    - Framework Settings
+    - Configuration File
+    - GUNICORN_CMD_ARGS environment variable named
+    - Command Line
+Those configs, if provided override the default gunicorn config/settings. 
+
+After the `load_config` call, `WsgiAppInstance.cfg.settings` will be use as the source of truth to read config from for the rest of the application that will be trigger by the `run` method on our `WsgiAppInstance`.
+
+8 - From the previous step, the initialization of our `WsgiAppInstance` is complete and it `run` method
+is called, here is where gunicorn handle applying config, launching all process needed and monitor the app.
+Let't us see how!
+
+After `WsgiAppInstance` initialization, it `run` method is called. Gunicorn check for config and apply them like:
+    - print a string representation of the `WsgiAppInstance.cfg` object when you specify `--print-config`
+    - dynamically load the wsgi application callable when you specify `--print-config` or `--check-config`
+    to check the config validity and exit
+    - setting up tracer to automatically print all code executed by the server if `--spew` is set. All 
+    subsequents executed code will be print to the console
+    - and so one...
+
+Along with checking and apply configs, it initialize and run the arbiter located at `gunicorn/arbiter.py`.
+Arbiter object is the class that setup the environement, start specified worker numbers with `--workers`
+(default to 1) cli arg in their own process (child process) and monitor them through system signals handling.
+
+9 - `Arbiter` for initialization take as argument the `WsgiAppInstance`, currently we have :
+
+- `WsgiAppInstance.usage` = `%(prog)s [OPTIONS] [APP_MODULE]`
+- `WsgiAppInstance.cfg` = `Config(WsgiAppInstance.usage, WsgiAppInstance.prog)`
+- `WsgiAppInstance.cfg.settings` = `dict containing list of gunicorn config`
+- `WsgiAppInstance.cfg.usage` = `%(prog)s [OPTIONS] [APP_MODULE]`
+- `WsgiAppInstance.cfg.prog` = `program file name`
+- `WsgiAppInstance.cfg.env_orig` = `current env variables copy with os.environ.copy()`
+- `WsgiAppInstance.callable` = `None`
+- `WsgiAppInstance.prog` = `prog`
+- `WsgiAppInstance.logger` = `None`
+- `WsgiAppInstance.app_uri` = `app:app` # set during `load_config` call in `WsgiAppInstance` `init` (not `__init__`) method
+
+During `Arbiter` initialization, gunicorn mainly:
+- keep an instance to the `WsgiAppInstance` in an attribute `app` on the `Arbiter` instance
+- keep an instance to the `WsgiAppInstance.cfg` in an `cfg` attribute on the `Arbiter` instance
+- setup the logger that will be use in the server, set on the `Arbiter` instance `log` attribute. Can be customize with `--logger_class` option
+- set the worker classe, the classe object that actually handle loading the wsgi app and incoming client requests. Can be customize with `--worker-class` option
+- parse and set the bind address specify with `--bind`
+- set worker numbers you specify with `--workers`, it triggers call to `nworkers_changed` callable
+- set `--timeout` config, timeout before killing and restarting a worker
+- set `--name` config
+- set environment variables specify with `--env` option
+- if `--preload` it provided, gunicorn load the wsgi callable and set it in `WsgiAppInstance.callable`
+
+10 - After `Arbiter` initialization, it `run` method is called and you get the message 
+`Starting gunicorn <guniron_version>`. 
+
+The `run` method on the `Arbiter` instance is the one that:
+
+- create PID file that contain gunicorn master process PID when you use the option `--pid`, the object
+managing the PID file is set on an instance attribute called `pidfile`
+- call the server hook `on_starting`(callable) specified in your config with an instance of the `Arbiter` object, so the _server_
+- setup handlers to listen to signal events:
+    - `SIGHUP`: 
+        Reload the configuration, start the new worker processes with a new configuration and      gracefully shutdown older workers. If the application is not preloaded (using the preload_app option), Gunicorn will also load the new version of it.
+    - `SIGQUIT`, `SIGINT`: 
+        Quick shutdown
+    - `SIGTERM`: 
+        Graceful shutdown. Waits for workers to finish their current requests up to 
+        the graceful_timeout.
+    - `SIGTTIN`: 
+        Increment the number of processes by one
+    - `SIGTTOU`: 
+        Decrement the number of processes by one
+    - `SIGUSR1`: 
+        Reopen the log files
+    - `SIGUSR2`: 
+        Upgrade Gunicorn on the fly. A separate TERM signal should be used to kill the old master process. This signal can also be used to use the new versions of pre-loaded applications. See Upgrading to a new binary on the fly for more information.
+    - `SIGWINCH`: 
+        Gracefully shutdown the worker processes when Gunicorn is daemonized.
+    - `SIGCHLD`: 
+        Sent to the master process when a worker process terminates or stops. Gunicorn uses this signal to monitor and manage worker processes.
+- create socket objects for the configured addresses or file descriptors; gunicorn read file descriptors from your option `--bind fd://<FD>`, `systemd` and `GUNICORN_FD` env variable. Gunicorn dynamically determine the socket type to use based on addresses or file descriptors, TCP socket or unix socket. The interfaces that wrap a type of socket object and used throughout the app is located at `gunicorn.sock`:
+    - `gunicorn.sock.TCPSocket`
+    - `gunicorn.sock.TCP6Socket`
+    - `gunicorn.sock.UnixSocket`
+- gunicorn validate provided info about ssl certification, mainly check if value specify with `--keyfile`, 
+`--certfile` are validate; if the files exist
+- gunicorn optionally send notification to systemd if running as service to notify it's booted.
+
+Gunicorn is booted at this stage meanning the socket object(s) are bound to the address(es) and 
+are listening but not accepting requests yet. This last step, _accepting requests_, is handle in the worker processe(s) that we shall see.
+
+The bound sockets are store in an attribute called `LISTENERS` as an array on the `Arbiter` object instance.
+
+It is from there you have the message `Listening at <address:port> <gunicorn_pid>` .etc. Gunicorn also check
+if the worker class has a `check_config` method and then call it with the server config and logger object; it at this stage before spawning workers, gunicorn call the server hook `when_ready` with the `Arbiter` instance object, so the _server_.
+
+11 - We'are still in the `Arbiter` instance `run` method and after the previous step, gunicorn tries 
+to set the process title if you have `setproctitle` installed.
+
+Then gunicorn start the number of workers specified with `--workers` option.
+
+If `--workers 4`, 4 workers will be start in different child processes, each of them follow this process:
+    - after `__init__` call of the worker class through class initiliazation, gunicorn call the `pre_fork` server hook callable with an instance of the server (`Arbiter`) instance and the current initialized worker. A new child process is created by gunicorn with `os.fork` call:
+        - In the current process _aka the master process_ gunicorn store in an instance attribute called `WORKERS` as dict the new worker initialized; the key is the worker process PID and as value the worker process intance
+        - in the worker process _aka the child process_ gunicorn: 
+            - first close all other workers (if any) temp file in the current new worker process as a new process inherit the execution environement of it parent process. The temp file as we will see is used between a gunicorn worker and the gunicorn master process to check if the worker in the child process is still running.
+            - set the the worker process title if you have `setproctitle` installed
+            - log the message `Booting worker with pid: <worker PID>`
+            - call the `post_fork` server hook callable with an instance of the server (`Arbiter`) instance and the current
+            initialized worker. This call is happening in the worker process, so the child process of gunicorn master process
+            - the worker class `init_process` method is called, it setup the worker and _run_ it
+            - from there the worker instance _initialized_, _setup_ and _runing_ in the child process can start accepting requests.
+
+After starting the needed workers in different processes, gunicorn enter in an infinite while loop, where it constantly:
+    - check if the current process, acting as master process to the worker processes, is not an orphan process, if its then gunicorn update _metadata_ to make it as new master process.
+    As it sound an Orphan process is a process whose it parent process is not running anymore, 
+    exited or kill in some way but the a process it forked still alive, so an orphan process. This can
+    happen when gunicorn receive a `SIGUSR2`, asking him to `Upgrading to a new binary on the fly` without any service downtime.
+    **Note**: A process can be a master process to worker processes and also a child process for another gunicorn master process.
+    - check the an instance variable `SIG_QUEUE`, which keep a list of maximum 5 signals sent by the os. 
+    Gunicorn check if a signal exists in the list and take the first if so, following FIFO principle.
+    A signal exists? Then gunicorn call the appropriate handler to handle it and then _wake up_ the master
+    process by writting to a pipe. Writting to the pipe write end help processing the next signal if exists in the `SIG_QUEUE` immediatly as gunicorn sleep for 1 second with `select` on the pipe read end when no signal exists.
+    - from the last step if no signal exists, then gunicorn, sleep for 1 second using `select` with 1 second
+    timeout, murder and manage workers meaning:
+        - check if amongst forked workers if any of them died or is not responding anymore, if so terminate the worker process. Gunicorn check an attribute called `aborted` on the worker class instance to see if it `True` meaning the worker is somehow aware that it died otherwise it means something unexpected
+        happened.
+        **Info**: To check if a worker is died or no responding, gunicorn use an artificial write to file
+        mechanisme. The worker process manually update _last modified_ and _last accessed_ time of a tempory file after a certain amount of time. Then the master process running the `Arbiter` (gunicorn server)
+        check the last modified of the temp file if it within a time interval limit otherwise terminate the worker process so the worker.
+        - during managing workers, gunicorn create or kill workers based on the `--workers` config provided
+    - then it restart this same process again.... until you exit
+
+12 - Now let'us look at what each signal handler does
+
+- `SIGHUP`: 
+    Reload the configuration, start the new worker processes with a new configuration and gracefully shutdown older workers. If the application is not preloaded (using the preload_app option), Gunicorn will also load the new version of it.
+
+    Handler execution flow:
+        - Gunicorn reset environment variable to it original form before it execution. 
+        Recall this `WsgiAppInstance.cfg.env_orig` ? It is that reference that is used to restore the
+        env variables and remove other variables set by gunicorn during execution
+        - Then gunicorn reload the configuration from scratch, with a call to `do_load_config` saw earlier.
+        It like when gunicorn first initialize, those are steps from 1 to 7 in this article, just before 
+        calling the  `WsgiAppInstance` `run` method. 
+        - The next step executed by gunicorn is to update the `Arbiter` instance with the new config loaded.
+        The `Arbiter`, the server, is update to reflect the new config loaded: 
+            - the app obj instance `app`
+            - the config (`gunicorn.config.Config`) object instance `cfg`
+            - worker class `worker_class`
+            - address `address`
+            - worker count `num_workers`
+            - timeout setting for gracefull shutdown `timeout`
+            - the process name `proc_name`
+        are updated on the server instance. Additionally gunicorn update the environment variables
+        with  `--env` you provided and load (import) the wsgi callable if `--preload` option.
+        - Gunicorn then check if the address has changed, if so it create new listeners (sockets)
+        - call the server hook `on_reload`
+        - update PID file if specify in you new config otherwise delete it if exists
+        - update the process name if `setproctitle` is installed
+        - spawn new workers based on `--workers` config available in you new loaded config
+        - So far old workers still accepting request so you app is still running, the last step in the 
+        process is to regulate workers count to reflect you new config
+
+    And that's for `SIGHUP`.
+
+- `SIGQUIT`:
+    Sending this signal, stop worker processes by sending them a `SIGQUIT` signal, wait for gracefull timeout set with `--graceful-timeout`, then force worker to exit if still alive.
+
+    Handler execution flow:
+        - Gunicorn start by closing all sockets obj available in the list instance variable called 
+        `LISTENERS` on the `Arbiter` in the master process, also it delete all unix socket endpoint if available.
+        - Send `SIGQUIT` to the worker processes and wait for `--graceful-timeout` for the worker to exit.
+        Then send a `SIGKILL` to force exit if still running
+        - But there is one thing still running, right? Gunicorn master process, the `Arbiter` (server) instance. To exit gunicorn raise `StopIteration` to quit the main loop describe earlier, which is safely caught and Gunicorn stoped. During that phase:
+            - you get a message like `Shutting down: Master`
+            - gunicorn remove PID file if available
+            - call the server hook `on_exit`
+
+- `SIGINT`:
+    Stop worker processes by sending them a `SIGQUIT` signal, wait for gracefull timeout set with
+    `--graceful-timeout`, then force worker to exit if still alive.
+
+    Handler execution flow: Exact same process as `SIGQUIT`.
+
+- `SIGTERM`:
+    Stop worker processes by sending them a `SIGTERM` signal, wait for gracefull timeout set with
+    `--graceful-timeout`, then force worker to exit if still alive.
+
+    Handler execution flow: Exact same process as `SIGQUIT`.
+
+- `SIGTTIN`:
+    Increases the number of workers by one.
+
+    Handler execution flow: 
+        - Increment the instance variable `num_workers` by one
+        - then manage workers as describe earlier
+
+- `SIGTTOU`:
+    Decreases the number of workers by one.
+
+    Handler execution flow:
+        - check if `num_workers` is at least greater than one and decrement the variable by one
+        - then manage workers as describe earlier
+
+- `SIGUSR1`:
+    When receive this signal, Gunicorn reopen log files and instruct child worker processes 
+    to do the same.
+
+    Handler execution flow:
+        - Gunicorn reopen the master process log files
+        - send `SIGUSR1` to worker processes to do the same.
+        **PS**: The effective use of this by Gunicorn is when you start a new gunicorn binary or reloading
+        configuration. Probably it a way gunicorn allow user to reopen log files if needed.
+
+- `SIGUSR2`:
+    With this signal, Gunicorn keep the current running server with it worker processes, let call it `server_a`, and create a new one lets call it `server_b` same as `server_a` in a new child process. It like starting a new server with it own worker processes and keep the old server active and running.
+
+    Handler execution flow:
+        - Gunicorn start by checking if in `server_a`, we've created a `server_b`(child master process) already and ignore the signal. Likewise if `server_b` already exists and the signal is sent to it, it checks if `server_a`(master process, old server) exists and ignore the signal as well.
+        - If the `server_a`doesn't have a child master process and the `server_b` exists but without a 
+        master process then the execution flow continue
+        - gunicorn create a new process with `os.fork()` and set the forked process PID in an instance variable called `reexec_pid` (default value is 0) which is use in the previous step to allow `server_a` to check if a child master process `server_b` already exist. From there `server_a` return
+        from the function and the new child created `server_b` continue it execution.
+        - In the child process gunicorn start by calling the server hook `pre_exec` with the server instance
+        `Arbiter`
+        - Copy the default, no modified env variables from the config object available in the instance variable `env_orig`
+        - Then update the origin env variables to include:
+            - a env variable named `GUNICORN_PID`, the `server_a` PID, so master process ID. The env variable `GUNICORN_PID` will be used during the setup of the new `server_b` to reopen log file since it indicate that we are in a new process and have a new program. It will also be use during starting `server_b` to set a variable named `master_pid` on the new instance, as you can guess it is that instance variable that is use to check if we have a parent as master process in the check decribe at the start of the execution
+            - `LISTEN_PID`, `LISTEN_FDS` if gunicorn is executed as service with `systemd` to allow the `server_b` to use the same underline fds when starting
+            - `GUNICORN_FD` is set if gunicorn is not running as `systemd` service for the same purpose, allow the new server `server_b` to use the same fds. Recall when creating socket, where gunicorn
+            read fds from?
+            - lastly gunicorn ensure we are in the correct workig dir, then call `os.execvpe` like this
+            `os.execvpe(<executable>, <args>, <new_environ>)`. The call to `os.execvpe` is like we calling gunicorn from the command line directly, so it create a new programm in the current process giving birth to `server_b`.
+
+- `SIGWINCH`:
+    Gunicorn react to this signal when runing as daemon with the option `--daemon`. `SIGTERM` is sent to worker processes to ask them to terminate and the gunicorn master process keep running
+
+    Handler execution flow:
+        - Gunicorn check if its running as daemon, otherwise ignore the signal
+        - if running as daemon, it reset the worker count to 0 on the server instance by change the instance variable `num_workers` to zero
+        - then send `SIGTERM` to worker processes
+        - Gunicorn is still running as daemon but can't accept a request anymore
+
+- `SIGCHLD`:
+    Sent by the undeline system (os), when a child exit. Gunicorn listen to this signal to avoid zombie
+    child process; process who already exits but still available in the process table.
+
+    Handler execution flow:
+        - Gunicorn enter in an infinite loop and call `os.waitpid` like this `os.waitpid(-1, os.WNOHANG)`.
+        With that, it check if any child process already finished(exit), if so the chil PID and status is returned. If no child process can not be wait, `os.waitpid` raise `ChildProcessError` error otherwise - child process exist but has no finished yet - (0, 0) is returned.
+        **Note**: `os.waitpid(-1, os.WNOHANG)` does not wait for aa child to finish and return immediatly whether or not a child already exit. `os.waitpid(-1, os.WNOHANG)` return two value, the first is the zombie process ID and second is the exit status code.
+        - Then it check if the return value is not (0, 0), if it is, the infinte loop is stoped and we are done there
+        - At this stage a zombie child process exist, so gunicorn:
+            - first check if the child PID is the same as the instance variable `reexec_pid` which is update during `SIGUSR2` signal handling. if `reexec_pid` and the child PID are equal it means the new server created during `SIGUSR2` handling exit, so we don't have a child master process anymore. What happened? Gunicorn update `reexec_pid` to 0(it initial value) so it can respond to 
+            `SIGUSR2` signal to create a new child master process next time.
+            - if the previouse check fail (`reexec_pid` != `zombie_pid`), gunicorn check whether the process
+            exit normally or in response to signal, this check is done based on the return status code by `os.waitpid`. 
+                - if it is a normal exit and the status code is 0 then gunicorn log a message to tell you that a given worker has exited, otherwise gunicorn check if the exit code is:
+                    - `3` meaning the worker failed to boot, an appropriate message is log and the server 
+                    terminate
+                    - `4` meaning application failed to be loaded the same process happened as for exit code `3`
+                    - otherwise gunicorn just let you know about the worker exited and the exit code
+                - if it an exit from signal like `SIGTERM` and so one, a the appropriate is log to let you know as well
+            At the end gunoicorn remove the worker from it state, concretly from the instance variable `WORKERS`, then close it tempory file and call the server hook `child_exit`.
+            The infinite continue untill `os.waitpid` return (0, 0) or raise an error.
+
+Congrat, we just cover signals handling in gunicorn master process. Now lets look at how a worker process is initialize and start accepting request.
+
+
+
+
+
