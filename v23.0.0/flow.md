@@ -5,18 +5,18 @@
 Structure used (from parent to child classes): 
 `gunicorn.app.base.BaseApplication` -> `gunicorn.app.base.Application` -> `gunicorn.app.wsgiapp.WSGIApplication`
 
-**Note**: `WsgiAppInstance` is an instance of `gunicorn.app.wsgiapp.WSGIApplication`.
+**Note**: Gunicorn version: 23.0.0
 
-Clarification: Gunicorn, worker 
+TODO: Clarification: Gunicorn, worker
 
 ## Execution flow
 
-1 - From : `gunicorn [OPTIONS] [APP_MODULE]` with `WSGIApplication` as base class
-and subclasse of `Application`
+1 - From : `gunicorn [OPTIONS] [APP_MODULE]` with `gunicorn.app.wsgiapp.WSGIApplication` as base class
+and subclasse of `gunicorn.app.base.Application`
 
 2 - `gunicorn.app.wsgiapp.WSGIApplication` initialization
 
-3 - After WSGIApplication initialization we enter in `gunicorn.app.base.BaseApplication` `__init__` method
+3 - After `gunicorn.app.base.Application` WSGIApplication initialization we enter in `gunicorn.app.base.BaseApplication` `__init__` method
 
 4 - In `gunicorn.app.base.BaseApplication` `__init__` method, these variables are initialize:
 - `usage`:
@@ -35,7 +35,7 @@ These variables are initialize on the `WSGIApplication` class instance. `WsgiApp
 - `WsgiAppInstance.usage` = `%(prog)s [OPTIONS] [APP_MODULE]`
 - `WsgiAppInstance.cfg` = `None`
 - `WsgiAppInstance.callable` = `None`
-- `WsgiAppInstance.prog` = `prog`
+- `WsgiAppInstance.prog` = `None`
 - `WsgiAppInstance.logger` = `None`
 
 After the variables set on `WsgiAppInstance`, the method `do_load_config` is called. It available
@@ -49,7 +49,7 @@ which is in our case the `WsgiAppInstance`
 
 6 - `load_default_config` update the instance variable `cfg` on the `WsgiAppInstance` to be an
 instance of `gunicorn.config.Config`. The `Config` class load all gunicorn default and accepted 
-config. So after calle to `load_default_config` method the `WsgiAppInstance` become:
+config. So after call to `load_default_config` method the `WsgiAppInstance` become:
 - `WsgiAppInstance.usage` = `%(prog)s [OPTIONS] [APP_MODULE]`
 - `WsgiAppInstance.cfg` = `Config(WsgiAppInstance.usage, WsgiAppInstance.prog)`
 - `WsgiAppInstance.callable` = `None`
@@ -134,7 +134,7 @@ Arbiter object is the class that setup the environement, start specified worker 
 - `WsgiAppInstance.cfg.prog` = `program file name`
 - `WsgiAppInstance.cfg.env_orig` = `current env variables copy with os.environ.copy()`
 - `WsgiAppInstance.callable` = `None`
-- `WsgiAppInstance.prog` = `prog`
+- `WsgiAppInstance.prog` = `None`
 - `WsgiAppInstance.logger` = `None`
 - `WsgiAppInstance.app_uri` = `app:app` # set during `load_config` call in `WsgiAppInstance` `init` (not `__init__`) method
 
@@ -148,7 +148,7 @@ During `Arbiter` initialization, gunicorn mainly:
 - set `--timeout` config, timeout before killing and restarting a worker
 - set `--name` config
 - set environment variables specify with `--env` option
-- if `--preload` it provided, gunicorn load the wsgi callable and set it in `WsgiAppInstance.callable`
+- if `--preload` is provided, gunicorn load the wsgi callable and set it in `WsgiAppInstance.callable`
 
 10 - After `Arbiter` initialization, it `run` method is called and you get the message 
 `Starting gunicorn <guniron_version>`. 
@@ -165,11 +165,11 @@ managing the PID file is set on an instance attribute called `pidfile`
         Quick shutdown
     - `SIGTERM`: 
         Graceful shutdown. Waits for workers to finish their current requests up to 
-        the graceful_timeout.
+        the graceful_timeout --graceful-timeout.
     - `SIGTTIN`: 
-        Increment the number of processes by one
+        Increment the number of worker processes by one
     - `SIGTTOU`: 
-        Decrement the number of processes by one
+        Decrement the number of worker processes by one
     - `SIGUSR1`: 
         Reopen the log files
     - `SIGUSR2`: 
@@ -201,7 +201,7 @@ Then gunicorn start the number of workers specified with `--workers` option.
 
 If `--workers 4`, 4 workers will be start in different child processes, each of them follow this process:
     - after `__init__` call of the worker class through class initiliazation, gunicorn call the `pre_fork` server hook callable with an instance of the server (`Arbiter`) instance and the current initialized worker. A new child process is created by gunicorn with `os.fork` call:
-        - In the current process _aka the master process_ gunicorn store in an instance attribute called `WORKERS` as dict the new worker initialized; the key is the worker process PID and as value the worker process intance
+        - In the current process _aka the master process_ gunicorn store in an instance attribute called `WORKERS` as dict the new worker initialized; the key is the worker process PID and as value the worker intance
         - in the worker process _aka the child process_ gunicorn: 
             - first close all other workers (if any) temp file in the current new worker process as a new process inherit the execution environement of it parent process. The temp file as we will see is used between a gunicorn worker and the gunicorn master process to check if the worker in the child process is still running.
             - set the the worker process title if you have `setproctitle` installed
@@ -234,7 +234,7 @@ After starting the needed workers in different processes, gunicorn enter in an i
 12 - Now let'us look at what each signal handler does
 
 - `SIGHUP`: 
-    Reload the configuration, start the new worker processes with a new configuration and gracefully shutdown older workers. If the application is not preloaded (using the preload_app option), Gunicorn will also load the new version of it.
+    Reload the configuration, start the new worker processes with a new configuration and gracefully shutdown older workers.
 
     Handler execution flow:
         - Gunicorn reset environment variable to it original form before it execution. 
@@ -287,7 +287,7 @@ After starting the needed workers in different processes, gunicorn enter in an i
     Stop worker processes by sending them a `SIGTERM` signal, wait for gracefull timeout set with
     `--graceful-timeout`, then force worker to exit if still alive.
 
-    Handler execution flow: Exact same process as `SIGQUIT`.
+    Handler execution flow: Exact same process as `SIGQUIT` but only with `SIGTERM` send to workers.
 
 - `SIGTTIN`:
     Increases the number of workers by one.
@@ -318,7 +318,7 @@ After starting the needed workers in different processes, gunicorn enter in an i
 
     Handler execution flow:
         - Gunicorn start by checking if in `server_a`, we've created a `server_b`(child master process) already and ignore the signal. Likewise if `server_b` already exists and the signal is sent to it, it checks if `server_a`(master process, old server) exists and ignore the signal as well.
-        - If the `server_a`doesn't have a child master process and the `server_b` exists but without a 
+        - If the `server_a`doesn't have a child master process or the `server_b` exists but without a 
         master process then the execution flow continue
         - gunicorn create a new process with `os.fork()` and set the forked process PID in an instance variable called `reexec_pid` (default value is 0) which is use in the previous step to allow `server_a` to check if a child master process `server_b` already exist. From there `server_a` return
         from the function and the new child created `server_b` continue it execution.
@@ -352,7 +352,7 @@ After starting the needed workers in different processes, gunicorn enter in an i
         **Note**: `os.waitpid(-1, os.WNOHANG)` does not wait for a child to finish and return immediatly whether or not a child already exit. `os.waitpid(-1, os.WNOHANG)` return two value, the first is the zombie process ID and second is the exit code.
         - Then it check if the return value is not (0, 0), if it is, the infinte loop is stoped and we are done here
         - At this stage a zombie child process exist, so gunicorn:
-            - first check if the child PID is the same as the instance variable `reexec_pid` which is update during `SIGUSR2` signal handling. if `reexec_pid` and the child PID are equal it means the new server created during `SIGUSR2` handling exit, so we don't have a child master process anymore. What happened? Gunicorn update `reexec_pid` to 0(it initial value) so it can respond to 
+            - first check if the child PID is the same as the instance variable `reexec_pid` which is update during `SIGUSR2` signal handling. if `reexec_pid` and the child PID are equal it means the new server created during `SIGUSR2` handling exit, so we don't have a child master process anymore. What happened? Gunicorn update `reexec_pid` to 0 (it initial value) so it can respond to 
             `SIGUSR2` signal to create a new child master process next time.
             - if the previouse check fail (`reexec_pid` != `zombie_pid`), gunicorn check whether the process
             exit normally or in response to a signal, this check is done based on the return status code by `os.waitpid`. 
@@ -373,13 +373,13 @@ We just cover signals handling in gunicorn master process. Now lets look at how 
     - `init_process` after runing it logic call `run` method on the worker instance
     - worker enter in the main loop and start accepting requests
 
-14 - We will look at the behavior of the base worker class located at `gunicorn.workers.base.Worker` then specific worker: `sync` `gunicorn.workers.sync.SyncWorker` and `gthread` `gunicorn.workers.gthread.ThreadWorker`
+14 - We will look at the behavior of the base worker class located at `gunicorn.workers.base.Worker` then specific worker: `sync` `gunicorn.workers.sync.SyncWorker`.
 
 15 - Base worker initialization `gunicorn.workers.base.Worker`
 
 During worker class initialization in the master process these instance variable are set:
 
-- `age`: representing the `age` of the worker. Concretly if we have 3 workers to spawn, the first spawn worker will have an `age` of `1` and second spawn will have an `age` of 2 and so one. The worker age is tracked by the master process and the current age is increment by one then pass to the worker class as param
+- `age`: representing the `age` of the worker. Concretly if we have 3 workers to spawn, the first spawn worker will have an `age` of `1` and second spawn will have an `age` of 2 and so one. The worker age is tracked by the master process and the current age is increment by one then pass to the worker class as param when spawning new worker
 - `pid`: representing the PID of the worker process. It default value is `[booting]` and will be update after fork.
 - `ppid`: the master process PID, where the server instance is running. Pass to the worker class as param.
 - `sockets`: List of listeners to use to accept incoming request. It value is the list of listeners setup by the master process in it intance variable `LISTENERS`.
@@ -427,7 +427,7 @@ We then enter in the main loop, where gunicorn continously accept and process re
 
 The main loop is design for two cases:
     - when we only have one listener:
-        - In this case the worker starts processing request if available and after a request/response lifecycle, it updates its tempory file to tell the master process it still alive, then without waiting (meaning no call to `select.select`), the worker continously processes more requests if available until no request is waiting for processing. The worker then wait for `timeout` using `select.select` to free up the CPU before the next iteration and continue with the next iteration if `timeout` complete or new request arrives. 
+        - In this case the worker starts processing request if available and after a request/response lifecycle, it updates its tempory file to tell the master process it still alive, then without waiting (meaning no call to `select.select`), the worker continously processes more requests if available until no request is waiting for processing. The worker then wait for `timeout --timeout` using `select.select` to free up the CPU before the next iteration and continue with the next iteration if `timeout` complete or new request arrives. 
     - when we have more than one listener:
         - The worker starts by checking listeners (server sockets) readability using `select.select` with `timeout`, if one or more listener (server socket) are readable, the worker then processes one request over each readable listeners then continues with the next iteration in the main loop using the same process again.
 
@@ -439,7 +439,7 @@ In other words, for each iteration in the main loop:
 
 **Note**: The worker notify the master process before starting to wait for `timeout` or new request.
 
-Also during each iteration in the main loop, the worker check if its parent has changed, if so meaning it's an orphan process, the worker breaks from the main loop and exits the process.
+Also during each iteration in the main loop, the worker check if its parent has changed, if so, meaning it's an orphan process, the worker breaks from the main loop and exits the process.
 
 During the main loop execution, the worker instance method `accept` is called with a listener (server socket) on which socket `accept` method is called.
 
@@ -467,7 +467,7 @@ During the parser initialization:
     - based on the client info, an attribute `unreader` is set on the parser instance `parser` and contains an object that wrap the client socket or data source in order to provide a convinent way to read the data.
     The unreader can be of two types `gunicorn.http.unreader.SocketUnreader` or `gunicorn.http.unreader.IterUnreader`, both sharing a common parent class `gunicorn.http.unreader.Unreader`. 
     Instance of `gunicorn.http.unreader.SocketUnreader` is created when the client socket or data source has the `recv` method otherwhise `gunicorn.http.unreader.IterUnreader` is created.
-    So far, from my understanding, the unreader object wrap the client socket, then is used to read from it an amount `Q` of data and if we get more than `Q`, the remaining data is keep in memory for reference later to potentially avoid data lost.
+    So far, from my understanding, the unreader object wrap the client socket, then is used to read from it an amount `Q` of data and if we get more than `Q`, the remaining data is kept in memory for reference later to potentially avoid data lost.
     In fact during unreader initialization, it creates an in memory byte buffer using python `io` 
     module
     - then an attribute named `mesg` is set on `parser`, which represent a request object `gunicorn.http.message.Request` and will contain the parsed data from the Http message
@@ -519,7 +519,7 @@ Priority: u=0, i\r\n\r\n
             - the request uri is empty or is invalid
             - the http version specified in the message is invalid or not the version 1
         then the request processing stops and the client get an error message. 
-        - Now comme the request headers parsing part, from the remaining data after reading the request line, the worker reads from the socket/data source untill it find the fisrt occurence of `\r\n\r\n` indicating the end of the request headers. The headers data size should be within a limit which is calculate using `--limit-request-fields` and `--limit-request-field_size` config options. In case of no request headers available, we immediatly return from the `parse` method. This can happen with a message like this : 
+        - Now come the request headers parsing part, from the remaining data after reading the request line, the worker reads from the socket/data source untill it find the fisrt occurence of `\r\n\r\n` indicating the end of the request headers. The headers data size should be within a limit which is calculate using `--limit-request-fields` and `--limit-request-field_size` config options. In case of no request headers available, we immediatly return from the `parse` method. This can happen with a message like this : 
         ```bash
         GET / HTTP/1.1\r\n
         \r\n

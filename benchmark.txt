@@ -1,0 +1,45 @@
+sync:
+    cmd: wrk -d30s -t12 -c1000 http://127.0.0.1:8080/
+    output: Running 30s test @ http://127.0.0.1:8080/
+            12 threads and 1000 connections
+            Thread Stats   Avg      Stdev     Max   +/- Stdev
+                Latency   781.87ms  180.02ms   1.37s    79.63%
+                Req/Sec   145.28    116.82   520.00     62.86%
+            37633 requests in 30.10s, 5.67MB read
+            Requests/sec:   1250.33
+            Transfer/sec:    192.92KB
+
+gevent:
+    cmd: wrk -d30s -t12 -c1000 http://127.0.0.1:8080/
+    output: Running 30s test @ http://127.0.0.1:8080/
+            12 threads and 1000 connections
+                Thread Stats   Avg      Stdev     Max   +/- Stdev
+                Latency   200.88ms  448.25ms   1.99s    83.50%
+                Req/Sec   343.97    478.73     2.08k    86.80%
+            50487 requests in 30.09s, 7.85MB read
+            Socket errors: connect 0, read 0, write 0, timeout 5048
+            Requests/sec:   1677.80
+            Transfer/sec:    267.07KB
+
+tornado:
+    cmd: wrk -d30s -t12 -c1000 http://127.0.0.1:8080/
+    output: Running 30s test @ http://127.0.0.1:8080/
+            12 threads and 1000 connections
+            Thread Stats   Avg      Stdev     Max   +/- Stdev
+                Latency     1.08s   150.24ms   1.85s    90.90%
+                Req/Sec   141.18    135.03   820.00     79.68%
+            27370 requests in 30.10s, 2.95MB read
+            Requests/sec:    909.30
+            Transfer/sec:    100.34KB
+
+Uvloop:
+    cmd: wrk -d30s -t12 -c1000 http://127.0.0.1:8080/
+    output: Running 30s test @ http://127.0.0.1:8080/
+            12 threads and 1000 connections
+            Thread Stats   Avg      Stdev     Max   +/- Stdev
+                Latency    53.04ms   53.18ms   1.98s    99.50%
+                Req/Sec     0.88k   713.29     5.13k    72.20%
+            305424 requests in 30.10s, 24.47MB read
+            Socket errors: connect 0, read 0, write 0, timeout 437
+            Requests/sec:  10147.52
+            Transfer/sec:    832.41KB

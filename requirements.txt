@@ -1,0 +1,10 @@
+gevent==25.4.2
+greenlet==3.2.1
+gunicorn==23.0.0
+httptools==0.6.4
+packaging==25.0
+setuptools==80.3.1
+tornado==6.4.2
+uvloop==0.21.0
+zope.event==5.0
+zope.interface==7.2
