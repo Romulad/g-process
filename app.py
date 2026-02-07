@@ -16,10 +16,6 @@ def app(environ, start_response):
     ]   
     start_response(status, response_headers)
     return [data]
-    
-
-class StandaloneApplication(WSGIApplication):
-    pass
 
 
 if __name__ == "__main__":
@@ -31,4 +27,4 @@ if __name__ == "__main__":
         '--reload',
     ]
     sys.argv.extend(options)
-    StandaloneApplication("%(prog)s [OPTIONS] [APP_MODULE]").run()
+    WSGIApplication("%(prog)s [OPTIONS] [APP_MODULE]").run()

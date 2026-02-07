@@ -2,7 +2,7 @@
 
 ## Classes structure
 
-Structure used (from parent to child classes): 
+Structure used (from parent to child classes):
 `gunicorn.app.base.BaseApplication` -> `gunicorn.app.base.Application` -> `gunicorn.app.wsgiapp.WSGIApplication`
 
 **Note**: Gunicorn version: 23.0.0
