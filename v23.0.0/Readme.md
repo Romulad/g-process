@@ -4,8 +4,6 @@
 
 Before diving into the execution flow, it helps to clarify a few core concepts.
 
----
-
 ### Gunicorn
 
 Gunicorn is a python program that implements a **HTTP server** used to run Python web applications built with frameworks such as **Django**, **Flask**, and recently **FastAPI**.
@@ -35,9 +33,8 @@ The **Arbiter** is a central class object in Gunicorn and represents the core of
 
 ### Worker
 
-A **worker** is a [process](#process) responsible for **accepting and handling client requests**.
-
-Gunicorn supports different worker implementations (sync, async, threaded, etc.)
+A **worker** is a class object in Gunicorn that implement the require logic for **accepting and handling client requests**. 
+Gunicorn supports different worker implementations (sync, async, thread, etc.)
 
 ---
 
@@ -61,13 +58,35 @@ When you start Gunicorn, the initial Python process becomes the **master process
 
 ---
 
+
 ## Execution flow overview
 
 ![Gunicorn execution overview](./flow-overview.png)
 
 This diagram shows a high-level view of how Gunicorn executes.
 
-At this stage, it is completely normal to have many questions.
 Each part of this flow will be explored in detail in the sections that follow, with references to the actual Gunicorn source code.
 
----
+
+## 📌 Chapter / Section Titles
+
+1️⃣ **[Startup and Configuration Loading](./1_startup_&_config_load.md)**
+(Gunicorn CLI → config parsing & validation)
+
+2️⃣ **[From Configuration to Arbiter Instantiation](./2_arbiter_creation.md)**
+(Preparing the server control plane)
+
+3️⃣ **[Initializing the Arbiter and Launching the Server](./3_server_initialization.md)**
+(The master process comes to life)
+
+4️⃣ **[Signal Handling in the Master Process](./4_signal_handling.md)**
+(Reloads, restarts, shutdowns, worker management)
+
+5️⃣ **[Worker Lifecycle: Base Worker and Subclasses](./5_base_worker.md)**
+(How workers are created and managed)
+
+6️⃣ **[HTTP Request Parsing in Gunicorn Sync Worker](./6_sync_worker_&_request_parsing.md)**
+(From socket bytes to structured request object)
+
+7️⃣ **[WSGI Request Handling and Application Invocation](./7_wsgi_handling.md)**
+(Building `environ`, calling the app, sending a response)

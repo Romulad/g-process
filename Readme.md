@@ -5,7 +5,7 @@ How does gunicorn work under the hood?
 This repository documents how **Gunicorn works internally**, from running  `gunicorn app:app` all the way to request handling, 
 with **direct references to the source code**.
 
-Gunicorn is downloaded **millions of times every month** and sits at the core of many production Python systems, yet its internal architecture is rarely explored in detail. This project aims to change that.
+Gunicorn is downloaded **millions of times every month** and sits at the core of many production Python systems, yet its internal is rarely explored in detail. This project aims to change that.
 
 **Documented versions:** `23.0.0`
 
@@ -27,6 +27,7 @@ As I read the code, I began documenting what I was learning to:
 * and make the codebase easier to reason about.
 
 Although this documentation started as personal notes, I realized how helpful it would have been to have something like this when I first wanted to understand Gunicorn internals.
+
 That’s how this project was born.
 
 ---
@@ -42,7 +43,7 @@ In particular, it may be useful if you:
 * want to learn from a real-world, battle-tested codebase,
 * enjoy reading source code and understanding *why* certain architectural decisions were made.
 
-It is not a step-by-step tutorial, but rather a **guided walkthrough of the code**, focused on structure, flow, and design choices.
+It is a **guided walkthrough of the code**, focused on structure, flow, and design choices.
 
 ---
 
@@ -67,11 +68,7 @@ Currently:
 
 If you find this documentation useful or learn something new from it, consider **starring the repository**.
 
-It helps others discover the project and motivates me to continue:
-
-* exploring more parts of Gunicorn,
-* documenting newer versions,
-* and improving clarity over time.
+It helps others discover the project and motivates me too :)
 
 Thank you for reading — and happy code diving 🚀
 
@@ -80,6 +77,14 @@ Thank you for reading — and happy code diving 🚀
 ## Getting started
 
 * 📘 **[Gunicorn 23.0.0 internals](/v23.0.0/Readme.md)**
+
+---
+
+## 🙏 Acknowledgements
+
+A big thank you ❤️ to the creator of [Gunicorn](https://github.com/benoitc/gunicorn), the maintainers, contributors, and everyone in the Python open-source community who has invested time and care into building and maintaining this project.
+
+This documentation exists because of the deep engineering and thoughtful design in the Gunicorn codebase.
 
 ---
 
@@ -100,4 +105,4 @@ feel free to fork the repository and open a pull request.
 
 ## License
 
-See the `LICENSE` file in this repository for details.
+See the [LICENSE](./LICENSE) file in this repository for details.
