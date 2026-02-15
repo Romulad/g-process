@@ -22,7 +22,7 @@ Like: `gunicorn --workers 4 app:app`
 
 Gunicorn internally uses [WSGIApplication](./source_ref/wsgi.py), which is a subclass of [Application](./source_ref/base_classes.py), itself a subclass of [BaseApplication](./source_ref/base_classes.py).
 
-Understanding this hierarchy is important because initialization flows **from the most specific class down to the base class**, while configuration loading is orchestrated by the base class.
+Understanding this hierarchy is important because execution flows **from the most specific class down to the base class**, while configuration loading is orchestrated by the base class.
 
 [Function runner](./source_ref/1_startup_&_config_load_code.md#run-function)
 
@@ -30,7 +30,7 @@ Understanding this hierarchy is important because initialization flows **from th
 
 ## WSGIApplication Initialization
 
-When `WSGIApplication` is instantiated, its initialization ultimately enters the `__init__` method of `BaseApplication`.
+When `WSGIApplication` is instantiated, its initialization enters the `__init__` method of `BaseApplication`.
 
 This is where the foundational state of the application instance is created.
 
@@ -159,4 +159,4 @@ At this stage:
 * The WSGI app path is known.
 * The configuration object is fully populated.
 
-The next step in the execution flow is the transition from configuration loading to **arbiter creation inside the master process (current python process)**, which is where the server lifecycle truly begins.
+The next step in the execution flow is the transition from configuration loading to [arbiter creation inside the master process (current python process)](./2_arbiter_creation.md).

@@ -1,6 +1,6 @@
 ## Run function
 
-**Python path:** `gunicorn.app.wsgiapp` [Full source code](./wsgi.py) 
+**Path:** `gunicorn.app.wsgiapp` [Full source code](./wsgi.py) 
 
 ```python
 def run(prog=None):
@@ -14,7 +14,7 @@ def run(prog=None):
 
 ## Base class `__init__` method
 
-**Python path:** `gunicorn.app.base.BaseApplication.__init__` [Full source code](./base_classes.py) 
+**Path:** `gunicorn.app.base.BaseApplication.__init__` [Full source code](./base_classes.py) 
 
 ```python
 def __init__(self, usage=None, prog=None):
@@ -28,7 +28,7 @@ def __init__(self, usage=None, prog=None):
 
 ## Base class `do_load_config` method
 
-**Python path:** `gunicorn.app.base.BaseApplication.do_load_config` [Full source code](./base_classes.py) 
+**Path:** `gunicorn.app.base.BaseApplication.do_load_config` [Full source code](./base_classes.py) 
 
 ```python
 def do_load_config(self):
@@ -46,7 +46,7 @@ def do_load_config(self):
 
 ## Base class `load_default_config` method
 
-**Python path:** `gunicorn.app.base.BaseApplication.load_default_config` [Full source code](./base_classes.py) 
+**Path:** `gunicorn.app.base.BaseApplication.load_default_config` [Full source code](./base_classes.py) 
 
 ```python
 def load_default_config(self):
@@ -57,7 +57,7 @@ def load_default_config(self):
 
 ## Base class `load_config` method
 
-**Python path:** `gunicorn.app.base.BaseApplication.load_config` [Full source code](./base_classes.py) 
+**Path:** `gunicorn.app.base.BaseApplication.load_config` [Full source code](./base_classes.py) 
 
 ```python
 def load_config(self):
@@ -72,7 +72,7 @@ def load_config(self):
 
 ## WSGIApplication class `load_config` method
 
-**Python path:** `gunicorn.app.wsgiapp.WSGIApplication.load_config` [Full source code](./wsgi.py)
+**Path:** `gunicorn.app.wsgiapp.WSGIApplication.load_config` [Full source code](./wsgi.py)
 
 ```python
 def load_config(self):
@@ -88,7 +88,7 @@ def load_config(self):
 
 ## Application class `load_config` method
 
-**Python path:** `gunicorn.app.base.Application.load_config` [Full source code](./base_classes.py) 
+**Path:** `gunicorn.app.base.Application.load_config` [Full source code](./base_classes.py) 
 
 ```python
 def load_config(self):
@@ -142,7 +142,7 @@ def load_config(self):
 
 ## Base class `init` method
 
-**Python path:** `gunicorn.app.base.BaseApplication.init` [Full source code](./base_classes.py) 
+**Path:** `gunicorn.app.base.BaseApplication.init` [Full source code](./base_classes.py) 
 
 ```python
 def init(self, parser, opts, args):
@@ -152,7 +152,7 @@ def init(self, parser, opts, args):
 
 ## WSGIApplication class `init` method
 
-**Python path:** `gunicorn.app.wsgiapp.WSGIApplication.init` [Full source code](./wsgi.py)
+**Path:** `gunicorn.app.wsgiapp.WSGIApplication.init` [Full source code](./wsgi.py)
 
 ```python
 def init(self, parser, opts, args):
