@@ -1,6 +1,6 @@
 # From Configuration to Arbiter Instantiation
 
-**Important:** **WsgiAppInstance** is the instance from [WSGIApplication](./source_ref/wsgi.py) initialization from [previous step](./1_startup_&_config_load.md)
+**Note:** **WsgiAppInstance** is the instance from [WSGIApplication](./source_ref/wsgi.py) initialization from [previous step](./1_startup_&_config_load.md)
 
 At this stage, the `WsgiAppInstance` has already been created and its [run()](./source_ref/2_arbiter_creation_code.md#application-class-run-method) method is invoked.
 
@@ -99,8 +99,6 @@ This gives the Arbiter full access to configuration and application metadata.
 
 * Reads the `--bind` configuration
 * Parses host/port or Unix socket definitions
-* Prepares sockets for later server startup
-
 
 #### 5️⃣ Configures Worker Count
 
