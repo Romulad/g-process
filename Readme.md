@@ -28,8 +28,6 @@ As I read the code, I began documenting what I was learning to:
 
 Although this documentation started as personal notes, I realized how helpful it would have been to have something like this when I first wanted to understand Gunicorn internals.
 
-That’s how this project was born.
-
 ---
 
 ## Who this is for

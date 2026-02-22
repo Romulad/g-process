@@ -1,23 +1,99 @@
-### Request handling
-This is where the client request is processed and a response is returned to the client. Mainly the [environ](https://peps.python.org/pep-3333/#environ-variables) dictionnary for the request is created then the [wsgi app callable](https://peps.python.org/pep-3333/#the-application-framework-side) is called and the data returned by the wsgi app is sent to the client.
+# Request Handling
 
-#### Environ dictionary and response object
-This step start with call to the server hook `pre_request`, then the [environ](https://peps.python.org/pep-3333/#environ-variables) and a response object(`gunicorn.http.wsgi.Response`) are created using the client socket and address, the request object created in the last step, the server config and the server address.
+This is the stage where the parsed HTTP request is turned into a WSGI call and an HTTP response is sent back to the client.
 
-The response object `gunicorn.http.wsgi.Response` is intialized using the request object, the client socket and the server configuration, then the worker starts building the [environ variables](https://peps.python.org/pep-3333/#environ-variables) along with headers parsed in the request object. 
+At a high level, the worker:
 
-The worker also responds to the [Expect header](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Expect#large_message_body) and normalize headers by replacing `-` by `_` for consistency. Request headers are also prefixed with  `HTTP_` before being set in the [environ](https://peps.python.org/pep-3333/#environ-variables) dictionnary except `CONTENT_TYPE` and `CONTENT_LENGTH`.
+* Builds the WSGI [environ](https://peps.python.org/pep-3333/#environ-variables) dictionary.
+* Instantiates a response object.
+* Calls the [wsgi app callable](https://peps.python.org/pep-3333/#the-application-framework-side).
+* Streams the returned data to the client.
 
-The client and server addresses and ports are set in the [environ](https://peps.python.org/pep-3333/#environ-variables) dictionnary using `REMOTE_ADDR`, `REMOTE_PORT`, `SERVER_NAME`, `SERVER_PORT` along with the `url_scheme` `http` or `https` determined during request parsing.
+---
 
-If `SCRIPT_NAME` is available, the url part containing it, is cut from the parsed path in the request object. The remaining part is set in the [environ](https://peps.python.org/pep-3333/#environ-variables) as `PATH_INFO` along with script name itself `SCRIPT_NAME`.
+## Building the [environ](./source_ref/wsgi_object.md#wsgi-object-create) and the Response Object
 
-If gunicorn is running behind a proxy that support protocol proxy and you enable protocol proxy through `--protocol-poxy` then the client info `REMOTE_ADDR`, `REMOTE_PORT` are updated in the [environ](https://peps.python.org/pep-3333/#environ-variables).
+[Request handling](./source_ref/sync_worker.md#sync-worker-handle_request-method) begins by invoking the server hook `pre_request`.
 
-At the end an [environ](https://peps.python.org/pep-3333/#environ-variables) dictionnary can looks like this:
+Next, the worker creates:
+
+* The WSGI [environ](https://peps.python.org/pep-3333/#environ-variables).
+* A response object: [gunicorn.http.wsgi.Response](./source_ref/wsgi_object.py).
+
+The response object is initialized with:
+
+* The parsed request object.
+* The client socket.
+* The server configuration.
+
+While the response object is being prepared, the worker builds the [environ](https://peps.python.org/pep-3333/#environ-variables)  dictionary using:
+
+* Information extracted from the parsed request (method, headers, path, version, etc.).
+* Client and server socket details.
+* Configuration values.
+
+---
+
+### Header Normalization
+
+During this process:
+
+* All incoming HTTP headers are normalized by replacing `-` with `_`.
+* Most headers are prefixed with `HTTP_` before being inserted into [environ](https://peps.python.org/pep-3333/#environ-variables).
+
+There are two important exceptions:
+
+* `Content-Type` → `CONTENT_TYPE`
+* `Content-Length` → `CONTENT_LENGTH`
+
+If the request includes an [Expect header](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Expect#large_message_body) (for example, `Expect: 100-continue`), the worker handles it appropriately before proceeding.
+
+---
+
+### Core WSGI Variables
+
+The worker populates standard WSGI keys such as:
+
+* `wsgi.version`
+* `wsgi.url_scheme` (`http` or `https`, determined during parsing)
+* `wsgi.input` (the request body wrapper)
+* `wsgi.errors`
+* `wsgi.multithread`
+* `wsgi.multiprocess`
+* `wsgi.run_once`
+
+Network-related fields are also set:
+
+* `REMOTE_ADDR`
+* `REMOTE_PORT`
+* `SERVER_NAME`
+* `SERVER_PORT`
+
+If `SCRIPT_NAME` is configured, the corresponding prefix is stripped from the request path:
+
+* The prefix becomes `SCRIPT_NAME`
+* The remainder becomes `PATH_INFO`
+
+---
+
+### Proxy Protocol Support
+
+If Gunicorn is running behind a proxy that supports the PROXY protocol and the feature is enabled via `--proxy-protocol`, the worker updates:
+
+* `REMOTE_ADDR`
+* `REMOTE_PORT`
+
+using the values provided by the proxy header rather than the raw socket values.
+
+---
+
+### Example `environ`
+
+A simplified example of a fully built `environ` might look like:
+
 ```python
 {
-    "wsgi.errors": <gunicorn.http.wsgi.WSGIErrorsWrapper object at address>, 
+    "wsgi.errors": <gunicorn.http.wsgi.WSGIErrorsWrapper object>, 
     "wsgi.version": (1, 0), 
     "wsgi.multithread": False, 
     "wsgi.multiprocess": False, 
@@ -25,26 +101,26 @@ At the end an [environ](https://peps.python.org/pep-3333/#environ-variables) dic
     "wsgi.file_wrapper": <class "gunicorn.http.wsgi.FileWrapper">, 
     "wsgi.input_terminated": True, 
     "SERVER_SOFTWARE": "gunicorn/23.0.0", 
-    "wsgi.input": <gunicorn.http.body.Body object at address>, 
-    "gunicorn.socket": <socket.socket fd=9, family=2, type=1, proto=0, laddr=("127.0.0.1", 8000), raddr=("127.0.0.1", 54810)>, 
+    "wsgi.input": <gunicorn.http.body.Body object>, 
+    "gunicorn.socket": <socket.socket object>,
     "REQUEST_METHOD": "GET", 
     "QUERY_STRING": "", 
     "RAW_URI": "/", 
     "SERVER_PROTOCOL": "HTTP/1.1", 
     "HTTP_HOST": "localhost:8000", 
     "HTTP_USER_AGENT": "user-agent", 
-    "HTTP_ACCEPT": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8", "HTTP_ACCEPT_LANGUAGE": "fr-FR,fr;q=0.5", 
-    "HTTP_ACCEPT_ENCODING": "gzip, deflate, br, zstd", 
-    "HTTP_DNT": "1", 
-    "HTTP_SEC_GPC": "1", 
+    "HTTP_ACCEPT": "value", 
+    "HTTP_ACCEPT_ENCODING": "gzip", 
+    "HTTP_DNT": "value", 
+    "HTTP_SEC_GPC": "value", 
     "HTTP_CONNECTION": "keep-alive", 
     "HTTP_COOKIE": "csrftoken=csrf-value", 
-    "HTTP_UPGRADE_INSECURE_REQUESTS": "1", 
-    "HTTP_SEC_FETCH_DEST": "document", 
-    "HTTP_SEC_FETCH_MODE": "navigate", 
-    "HTTP_SEC_FETCH_SITE": "none", 
-    "HTTP_SEC_FETCH_USER": "?1", 
-    "HTTP_PRIORITY": "u=0, i", 
+    "HTTP_UPGRADE_INSECURE_REQUESTS": "value", 
+    "HTTP_SEC_FETCH_DEST": "value", 
+    "HTTP_SEC_FETCH_MODE": "value", 
+    "HTTP_SEC_FETCH_SITE": "value", 
+    "HTTP_SEC_FETCH_USER": "value", 
+    "HTTP_PRIORITY": "value", 
     "wsgi.url_scheme": "http", 
     "REMOTE_ADDR": "127.0.0.1", 
     "REMOTE_PORT": "54810", 
@@ -55,24 +131,89 @@ At the end an [environ](https://peps.python.org/pep-3333/#environ-variables) dic
 }
 ```
 
-#### WSGI app call
-Before calling the wsgi application callable the worker increment it instance attribute `nr` that keep track on the number of request handle so far. If after incrementation, `nr` value is greater that `--max-requests` option then the worker will restart(exit and a new one will be created) after handling the current request.
+At this point, everything is ready to call the application.
 
-Then the [wsgi app callable](https://peps.python.org/pep-3333/#the-application-framework-side) is called with [environ](https://peps.python.org/pep-3333/#environ-variables) dictionnary created and the response object instance (`gunicorn.http.wsgi.Response`) [start_response](https://peps.python.org/pep-3333/#the-start-response-callable) method. 
+---
 
-The [wsgi app callable](https://peps.python.org/pep-3333/#the-application-framework-side) do it magic and return the data that should be sent to client as an iterable of bytes. But before returning the data it must call the response object [start_response](https://peps.python.org/pep-3333/#the-start-response-callable) method with the response status like `201 Created` and the response headers as collection of tuple `(header_name, header_value)` along with an optional arg `exc_info`. See [start_response](https://peps.python.org/pep-3333/#the-start-response-callable) for more info.
+## Calling the WSGI Application
 
-Mainly, the response object [start_response](https://peps.python.org/pep-3333/#the-start-response-callable) method mark the start of the http response, it:
-    - parsed the status code provide by the wsgi application
-    - processes the headers provided by the wsgi application, validate each of them and ignore [hop-by-hop headers](https://datatracker.ietf.org/doc/html/rfc2616.html#section-13.5.1) 
-    - determine how data should be sent to client:
-        - in chuck, when content length is not provided, http version support chunked body and the response status code/request method support sending a body in the response data
-        - directly up to content length when `CONTENT-LENGTH` is not `None`
+Before invoking the WSGI application callable, the worker increments its internal counter `nr`, which tracks how many requests it has handled.
 
-The data returned by the [wsgi app callable](https://peps.python.org/pep-3333/#the-application-framework-side) are sent to client up to `CONTENT-LENGTH` or if not `CONTENT-LENGTH` in chucked if client support it.
+If `nr` exceeds the value configured via `--max-requests`, the worker will finish processing the current request and then exit gracefully. The master process will spawn a fresh worker to replace it. This mechanism helps mitigate memory leaks in long-running processes.
 
-If the returned object is an intance of `gunicorn.http.wsgi.FileWrapper` then based on `--no-sendfile` and ssl not being enabled, gunicorn use `socket.socket.sendfile` for data transmission to client otherwhise fallback to the default sending mechanisme (iterate and send returned data to client).
+---
 
-Once data are sent to client, `post_request` server hook is called and no matter `--keep-alive`, the connection is closed with the client since we are use using `gunicorn.workers.sync.SyncWorker` worker.
+### The Application Call
 
-We are just done handling a request with `gunicorn.workers.sync.SyncWorker`.
+The WSGI application callable is invoked with:
+
+* The constructed `environ` dictionary.
+* The response object’s [start_response](https://peps.python.org/pep-3333/#the-start-response-callable) method.
+
+Conceptually:
+
+```python
+result = app(environ, response.start_response)
+```
+
+The WSGI application must:
+
+* Call [start_response(status, response_headers, exc_info=None)](https://peps.python.org/pep-3333/#the-start-response-callable)
+* Return an iterable yielding byte strings
+
+---
+
+## What `[start_response](./source_ref/wsgi_object.md#wsgi-start_response) Does
+
+The [start_response](https://peps.python.org/pep-3333/#the-start-response-callable) method marks the beginning of the HTTP response.
+
+It:
+
+* Parses and validates the status line (e.g., `"201 Created"`).
+* Validates response headers.
+* Filters out [hop-by-hop headers](https://datatracker.ietf.org/doc/html/rfc2616.html#section-13.5.1) (such as `Connection`).
+* Determines how the response body will be transmitted.
+
+The transmission strategy depends on:
+
+* Whether `Content-Length` is provided.
+* The HTTP version.
+* The response status code.
+* The request method.
+
+Possible outcomes:
+
+* If `Content-Length` is set, the response body is sent up to that exact length.
+* If no `Content-Length` is set and the protocol allows it (HTTP/1.1), chunked transfer encoding may be used.
+* For status codes or methods that must not include a body (e.g., `HEAD`, `204`, `304`), no body is sent.
+
+---
+
+## Sending the Response Body
+
+The iterable returned by the WSGI application is then consumed.
+
+Each chunk of bytes is written to the client socket:
+
+* Directly up to `Content-Length`, if defined.
+* Using chunked transfer encoding when applicable.
+
+If the returned object is an instance of [gunicorn.http.wsgi.FileWrapper](./source_ref/wsgi_object.md#wsgi-filewrapper), Gunicorn may optimize transmission:
+
+* If `--no-sendfile` is not set and SSL is not enabled, it uses `socket.sendfile()` for zero-copy transfer.
+* Otherwise, it falls back to iterating over the file and sending chunks manually.
+
+---
+
+## Finalization
+
+Once all response data has been transmitted:
+
+* The `post_request` server hook is called.
+* The connection is closed.
+
+With [gunicorn.workers.sync.SyncWorker](./source_ref/sync_worker.py), connections are not kept alive for reuse; the client connection is closed after each request cycle.
+
+At this point, one complete request–response lifecycle has finished under the synchronous worker model.
+
+[Next: Thanks](./next_step.md)
