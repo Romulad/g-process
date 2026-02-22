@@ -1,120 +1,323 @@
+# A Closer Look at the Synchronous Worker
 
-17 - A closer look at `gunicorn.workers.sync.SyncWorker`
+The default worker used by Gunicorn is:
 
-`gunicorn.workers.sync.SyncWorker` is the default worker used by gunicorn when no worker is specified.
-It subclasses the base worker `gunicorn.workers.base.Worker` we just saw in the previous step and implement the `run` method, the one needed to accept and handle incomming request.
+```python
+gunicorn.workers.sync.SyncWorker
+```
 
-The `run` method of `gunicorn.workers.sync.SyncWorker` starts by making all our listeners (server sockets) no blocking meaning when we will call `accept` method on a listener(socket), it won't block waiting for a request to be available, instead it will return immediatly by either throwing an error or with a client request data (client socket and address). 
+It subclasses:
 
-We then enter in the main loop, where gunicorn continously accept and process requests.
+```python
+gunicorn.workers.base.Worker
+```
 
-The main loop is design for two cases:
-    - when we only have one listener:
-        - In this case the worker starts processing request if available and after a request/response lifecycle, it updates its tempory file to tell the master process it still alive, then without waiting (meaning no call to `select.select`), the worker continously processes more requests if available until no request is waiting for processing. The worker then wait for `timeout --timeout` using `select.select` to free up the CPU before the next iteration and continue with the next iteration if `timeout` complete or new request arrives. 
-    - when we have more than one listener:
-        - The worker starts by checking listeners (server sockets) readability using `select.select` with `timeout`, if one or more listener (server socket) are readable, the worker then processes one request over each readable listeners then continues with the next iteration in the main loop using the same process again.
+Unlike the [base class](./5_base_worker.md), which mainly provides lifecycle and process management logic, [SyncWorker](./source_ref/sync_worker.py) implements the actual request-processing loop through its [run()](./source_ref/sync_worker.md#sync-worker-run-method) method.
 
-In other words, for each iteration in the main loop:
-    - the worker notify the master process it's alive, 
-    - check if there is request to process and processes it 
-    - wait for `timeout` or new request
-    - and restart the same process in the next iteration
+This is where connections are accepted, HTTP messages are parsed, and your WSGI application is invoked.
 
-**Note**: The worker notify the master process before starting to wait for `timeout` or new request.
+---
 
-Also during each iteration in the main loop, the worker check if its parent has changed, if so, meaning it's an orphan process, the worker breaks from the main loop and exits the process.
+## The [run()](./source_ref/sync_worker.md#sync-worker-run-method) Method
 
-During the main loop execution, the worker instance method `accept` is called with a listener (server socket) on which socket `accept` method is called.
+At startup, the synchronous worker configures all inherited listener sockets (server sockets) to **non-blocking mode**.
 
-When a request is available the call to `accept` on the listener(server socket) return a new socket to interact with the client and the client address info (address, port).
+This means that when [accept()](./source_ref/sync_worker.md#sync-worker-accept-method) is called:
 
-The client socket is set to blocking (e.g read operation will wait untill data is available) and close on exec flag is apply to it, then the worker instance method `handle` is called with:
-    - the server socket, the listener
-    - the socket to use to interact with the client
-    - and the client address, a tuple in form (address, port).
+* It does not block waiting for a connection.
+* It immediately returns:
 
-The `handle` method starts by checking whether the communication with the client should be done over ssl based on `--keyfile` and `--certfile` options. If `--keyfile` or `--certfile` is specified, a new secure socket is created from the client socket and will be used to handle the communication over SSL/TLS.
+  * A client socket (if a connection is ready), or
+  * An error indicating that no connection is available.
 
-The worker handles the client Http request in two phases:
-    - Parsing the client request
-    - Process the request after parsing by calling the wsgi application and send its response to the client
+After this setup, the worker enters its main loop.
 
-### Parsing the client request
-As I am writting this, Gunicorn uses Http/1 and parses the http message according to that specification.
-In the `handle` method, after deciding wether or not to use ssl/tls, the worker creates a parser object that takes as arguments the client socket, address and the server configuration. 
+---
 
-The parser object is an intance of `gunicorn.http.parser.RequestParser`. Let's call the instance created `parser`.
+## The Main Loop Strategy
 
-During the parser initialization:
-    - the config object is set on the parser instance as an attribute named `cfg`
-    - based on the client info, an attribute `unreader` is set on the parser instance `parser` and contains an object that wrap the client socket or data source in order to provide a convinent way to read the data.
-    The unreader can be of two types `gunicorn.http.unreader.SocketUnreader` or `gunicorn.http.unreader.IterUnreader`, both sharing a common parent class `gunicorn.http.unreader.Unreader`. 
-    Instance of `gunicorn.http.unreader.SocketUnreader` is created when the client socket or data source has the `recv` method otherwhise `gunicorn.http.unreader.IterUnreader` is created.
-    So far, from my understanding, the unreader object wrap the client socket, then is used to read from it an amount `Q` of data and if we get more than `Q`, the remaining data is kept in memory for reference later to potentially avoid data lost.
-    In fact during unreader initialization, it creates an in memory byte buffer using python `io` 
-    module
-    - then an attribute named `mesg` is set on `parser`, which represent a request object `gunicorn.http.message.Request` and will contain the parsed data from the Http message
-    - `source_addr`, an instance attribute is set containing the client address on `parser`
-    -  and at the end `req_count` attribute is set on `parser`, gunicorn says it used when we have the `Connection` header with `keep-alive` value
+The synchronous worker handles two scenarios depending on the number of listener sockets.
 
-`gunicorn.http.parser.RequestParser` provides a python iterator interface, so after `parser` is created, python bultin `next` function is executed on it leading to the execution of the `__next__` method. 
+### When There Is Only [One Listener](./source_ref/sync_worker.md#sync-worker-run_for_one-method)
 
-The execution flow of `__next__` method from `parser` create a request object `R`(just a name, nothing more) which is an instance of `gunicorn.http.message.Request`. The request object `R` created is set in `mesg` attribute on `parser` and that attribute is then returned from the `__next__` method. 
+* The worker attempts to accept a connection.
+* If a request is available, it processes the full request–response lifecycle.
+* After completing a request, it updates its temporary heartbeat file to notify the master process that it is still alive.
+* It continues processing additional queued requests immediately without calling `select()`, until no more are ready.
+* When no request is pending, it waits using `select.select()` with the configured `timeout` to avoid busy-waiting and CPU exhaustion.
 
-So, the `mesg` attribute on `parser` will contain an instance of `gunicorn.http.message.Request`. 
+---
 
-`R` represents the object containing the parsed http message for a request.
+### When There Are [Multiple Listeners](./source_ref/sync_worker.md#sync-worker-run_for_multiple-method)
 
-**Parsed http message?**
+* The worker uses `select.select()` to check which listener sockets are readable.
+* For each readable listener, it processes one request.
+* It then loops again and repeats the same process.
 
-Yes! And the parsing is done during the intialization of `gunicorn.http.message.Request` resulted to `R`
+---
 
-During the intialization of `gunicorn.http.message.Request` the Http message request line, headers are parsed and the body object or mechanism that will be use to read payload sent by the client is determined.
+### What Happens in Each Loop Iteration
 
-Before we look at the parsing process, here is an example of a Http GET message:
-```bash
+Each iteration of the worker loop follows this pattern:
+
+* Notify the master process that the worker is alive (by updating the temporary file).
+* Check for incoming connections.
+* Process available requests.
+* Wait for either:
+  * A new request, or
+  * The timeout to expire.
+* Repeat.
+
+The heartbeat update occurs **before** waiting, ensuring the master does not mistakenly consider the worker unresponsive.
+
+Additionally, the worker checks whether its parent PID has changed.
+If the parent process is no longer the expected master, the worker exits to avoid becoming an orphan.
+
+---
+
+## Accepting a Connection
+
+When a connection is available:
+
+```python
+client_socket, client_address = listener.accept()
+```
+
+The worker then:
+
+* Sets the client socket to **blocking mode** (reads will wait for data).
+* Applies the close-on-exec flag.
+* Calls its internal [handle()](./source_ref/sync_worker.md#sync-worker-handle-method) method with:
+
+  * The listener socket,
+  * The client socket,
+  * The client address.
+
+---
+
+## Inside the [handle()](./source_ref/sync_worker.md#sync-worker-handle-method) Method
+
+The first step is to determine whether SSL/TLS should be used.
+
+If `--keyfile` or `--certfile` is configured:
+
+* The client socket is wrapped in a secure SSL socket.
+* All further communication occurs over TLS.
+
+From there, request handling proceeds in two phases:
+
+* Parsing the HTTP request
+* Processing the parsed request (calling the WSGI application)
+
+---
+
+## Parsing the HTTP Request
+
+Gunicorn use HTTP/1.x parsing.
+
+To parse a request, the worker creates a parser object:
+
+```python
+gunicorn.http.parser.RequestParser
+```
+
+Let’s call this instance `parser`.
+
+---
+
+### Parser Initialization
+
+When [RequestParser](./source_ref/request-parser.md#parser-__init__-method) is created:
+
+* The configuration object (`cfg`) is attached.
+* An **unreader** object is created.
+
+The unreader abstracts how data is read from the client socket.
+
+It can be:
+
+* [gunicorn.http.unreader.SocketUnreader](./source_ref/unreader.py)
+* [gunicorn.http.unreader.IterUnreader](./source_ref/unreader.py)
+
+Both inherit from a common base class.
+
+If the data source exposes a `.recv()` method (like a socket), `SocketUnreader` is used.
+
+The unreader:
+
+* Wraps the client socket.
+* Reads a chunk of bytes.
+* Buffers any excess bytes in memory.
+* Uses an in-memory buffer from Python’s `io` module.
+
+This prevents data loss and allows partial reads.
+
+The parser also sets:
+
+* `mesg` — which will hold the parsed request object
+* `source_addr` — the client address
+* `req_count` — useful for `keep-alive` handling
+
+---
+
+### The Iterator Interface
+
+[RequestParser](./source_ref/request-parser.py) implements the iterator protocol.
+
+Calling:
+
+```python
+next(parser)
+```
+
+triggers [__next__()](./source_ref/request-parser.md#parser-__next__-method).
+
+Inside [__next__()](./source_ref/request-parser.md#parser-__next__-method):
+
+* A new request object is created:
+
+  ```python
+  gunicorn.http.message.Request
+  ```
+* That object is stored in `parser.mesg`.
+* The parsed request object is returned.
+
+We’ll call this object **R**.
+
+---
+
+### Inside [gunicorn.http.message.Request](./source_ref/message-parser.py)
+
+The actual HTTP parsing happens during initialization of this object.
+
+It receives:
+
+* The server configuration
+* The unreader
+* The client address
+* The request count
+
+---
+
+### Example HTTP Request
+
+```
 GET / HTTP/1.1\r\n
 Host: localhost:8000\r\n
-User-Agent: user-agent-value\r\n
-Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8\r\n
-Accept-Language: fr-FR,fr;q=0.5\r\n
-Accept-Encoding: gzip, deflate, br, zstd\r\n
-DNT: 1\r\n
-Sec-GPC: 1\r\n
+User-Agent: example\r\n
 Connection: keep-alive\r\n
-Cookie: csrftoken=csrtoken-value\r\n
-Upgrade-Insecure-Requests: 1\r\n
-Sec-Fetch-Dest: document\r\n
-Sec-Fetch-Mode: navigate\r\n
-Sec-Fetch-Site: none\r\n
-Sec-Fetch-User: ?1\r\n
-Priority: u=0, i\r\n\r\n
-[body]
+\r\n
 ```
-`gunicorn.http.message.Request` for initialization takes as args the server config object, the unreader created earlier, the client address and the request count (usefull with `keep-alive` connection) then:
-    - Setup the class state with a set of instance variables like `method` `uri` `path` `query`, `limit_request_line`, `limit_request_fields`, `limit_request_field_size` among others
-    - Executes the `parse` method:
-        - The request line is read from the http message, that's up to the first occurence of `\r\n`.
-        In the example provided, it's this: `GET / HTTP/1.1`. If gunicorn is running behind a server proxy that support protocol proxy and you enable it with the config option `--proxy-protocol`, then it checks if the first line read is the protocol proxy line. If so, which can looks like this `PROXY TCP4 203.0.113.10 203.0.113.20 56324 80`, it parses it, validate it, extracts the necessary informations like the client IP and Port from it and then read again up to the next occurence of `\r\n` to now get the request line. Gunicorn while reading the request line ensure it size is not larger than the config option `--limit-request-line`
-        - After the request line is read, for example `GET / HTTP/1.1`, it's parsed, validate and the request **method**, **path**, **query**, **fragment** and Http **version** are extract from it. If any error occures during parsing like:
-            - the request method contains not allowed characteres like lower case letters, # etc...
-            - the request method length is too large or less, must be between 3 or 20, no more, no less
-            - the request uri is empty or is invalid
-            - the http version specified in the message is invalid or not the version 1
-        then the request processing stops and the client get an error message. 
-        - Now come the request headers parsing part, from the remaining data after reading the request line, the worker reads from the socket/data source untill it find the fisrt occurence of `\r\n\r\n` indicating the end of the request headers. The headers data size should be within a limit which is calculate using `--limit-request-fields` and `--limit-request-field_size` config options. In case of no request headers available, we immediatly return from the `parse` method. This can happen with a message like this : 
-        ```bash
-        GET / HTTP/1.1\r\n
-        \r\n
-        [body]
-        ```
-        - if headers exist then the worker parses them to get a list of tuple (name, value) pair. While parsing each header line, the worker ensure that the headers count does not exceed `--limit-request-fields` option value or an error occures. It also makes sure that each header line size is within `--limit-request-field_size` option value or an error occures. Other validations happen as well like :
-            - validating that the header has this format `name:value` like `Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8`
-            - ensuring that the header `name` does not contain not allowed characteres
-            - making sure that the header value does not contain invalid and dangerous characteres `\0\r\n`
-            - validating whether to allow `_` or not in header name based on `--header-map` option.
-        - The headers are successfully parsed, we return from the `parse` method with the remain/unused data as value. That value is keep in the `unreader` object buffer.
-    - From here We've successfully parse the http message request line and headers, and the read but not used data is keep in the `unreader` object buffer. The next step is to determine how we will read the http message request body
-    - The body reading mechanism is influenced by two headers : `CONTENT-LENGTH` and `TRANSFER-ENCODING`. The goal is to determine if the request body should be read in chunk with `TRANSFER-ENCODING` header containing `chunked` as value in the right order or directly using the `CONTENT-LENGTH` header. Only one should be specified at a time but if both exist in the request header which is uncommon, an error occures to avoid smuggling attack. The base object use to read the request payload is `gunicorn.http.body.Body` and it takes a reader object during initialization which can be `ChunkedReader`, `LengthReader` or `EOFReader`. The reader is a class that takes the `unreader` object intance and provide a `.read` method.
 
-The initialization of `gunicorn.http.message.Request` is completed and we get an object (which we called `R`) that contains the http request message parsed.
+---
+
+### Parsing Flow
+
+#### Request Line
+
+The parser reads up to the first `\r\n`.
+
+Example:
+
+```
+GET / HTTP/1.1
+```
+
+If `--proxy-protocol` is enabled, Gunicorn first checks for a PROXY line such as:
+
+```
+PROXY TCP4 203.0.113.10 203.0.113.20 56324 80
+```
+
+If present, it parses and validates that line before reading the actual HTTP request line.
+
+The request line is validated:
+
+* Method must contain valid characters.
+* Length must be within bounds.
+* URI must not be empty.
+* HTTP version must be valid.
+* Must respect `--limit-request-line`.
+
+Any violation results in an error response.
+
+---
+
+#### Header Parsing
+
+After the request line, Gunicorn reads until `\r\n\r\n`.
+
+Header validation includes:
+
+* Total header count must not exceed `--limit-request-fields`.
+* Each header size must not exceed `--limit-request-field_size`.
+* Each header must follow `name: value` format.
+* Header names must contain valid characters.
+* Header values must not contain dangerous characters like `\0`, `\r`, or `\n`.
+* Underscore handling depends on configuration.
+
+If no headers are present, parsing stops immediately.
+
+Any unread bytes remain buffered in the unreader.
+
+---
+
+#### Determining the Body Reader
+
+After headers are parsed, Gunicorn decides how to read the body.
+
+This depends on:
+
+* `Content-Length`
+* `Transfer-Encoding`
+
+If `Transfer-Encoding: chunked` is present:
+
+* A `ChunkedReader` is used.
+
+If `Content-Length` is present:
+
+* A `LengthReader` is used.
+
+If neither is present:
+
+* An `EOFReader` may be used.
+
+If both are present simultaneously:
+
+* An error is raised to prevent request smuggling attacks.
+
+All body readers are wrapped by:
+
+```python
+gunicorn.http.body.Body
+```
+
+Each reader uses the unreader internally to safely retrieve bytes.
+
+---
+
+### Final Result of Parsing
+
+At this stage:
+
+* The request line is validated.
+* Headers are parsed and validated.
+* The appropriate body reader is selected.
+* Unused bytes remain buffered.
+
+The [Request](./source_ref/message-parser.py) object (R) now represents a fully parsed HTTP request.
+
+It contains:
+
+* Method
+* Path
+* Query string
+* Version
+* Headers
+* Body reader
+* Client address
+
+The worker can now move to the next stage:
+
+[Calling the WSGI application and generating the HTTP response.](./7_wsgi_handling.md)
