@@ -1,3 +1,5 @@
 __pycache__
 venv
 **http_message.**
+.vscode
+.zed
