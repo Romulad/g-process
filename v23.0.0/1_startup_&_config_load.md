@@ -24,7 +24,7 @@ Gunicorn internally uses [WSGIApplication](./source_ref/wsgi.py), which is a sub
 
 Understanding this hierarchy is important because execution flows **from the most specific class down to the base class**, while configuration loading is orchestrated by the base class.
 
-[Function runner](./source_ref/1_startup_&_config_load_code.md#run-function)
+[Function runner](./source_ref/wsgi.md#run-function)
 
 ---
 
@@ -34,7 +34,7 @@ When `WSGIApplication` is instantiated, its initialization enters the `__init__`
 
 This is where the foundational state of the application instance is created.
 
-Inside [`BaseApplication.__init__`](./source_ref/1_startup_&_config_load_code.md#base-class-init-method), the following instance attributes are initialized:
+Inside [`BaseApplication.__init__`](./source_ref/base_classes.md#base-class-__init__-method), the following instance attributes are initialized:
 
 * **usage**
   The CLI usage string (e.g. `%(prog)s [OPTIONS] [APP_MODULE]`).
@@ -62,7 +62,7 @@ prog     = None
 logger   = None
 ```
 
-Once these attributes are initialized, the method [do_load_config()](./source_ref/1_startup_&_config_load_code.md#base-class-do_load_config-method) is called.
+Once these attributes are initialized, the method [do_load_config()](./source_ref/base_classes.md#base-class-do_load_config-method) is called.
 
 This method is defined in `BaseApplication` and is responsible for loading and validating configuration.
 
@@ -70,12 +70,12 @@ This method is defined in `BaseApplication` and is responsible for loading and v
 
 ## Loading the Default Configuration
 
-Inside [do_load_config()](./source_ref/1_startup_&_config_load_code.md#base-class-do_load_config-method), two important methods are triggered:
+Inside [do_load_config()](./source_ref/base_classes.md#base-class-do_load_config-method), two important methods are triggered:
 
-* [load_default_config()](./source_ref/1_startup_&_config_load_code.md#base-class-load_default_config-method)
-* [load_config()](./source_ref/1_startup_&_config_load_code.md#base-class-load_config-method) (meant to be implemented or extended by subclasses)
+* [load_default_config()](./source_ref/base_classes.md#base-class-load_default_config-method)
+* [load_config()](./source_ref/base_classes.md#base-class-load_config-method) (meant to be implemented or extended by subclasses)
 
-The first step is [load_default_config()](./source_ref/1_startup_&_config_load_code.md#base-class-load_default_config-method).
+The first step is [load_default_config()](./source_ref/base_classes.md#base-class-load_default_config-method).
 
 This method sets the `cfg` attribute to an instance of `gunicorn.config.Config`.
 
@@ -113,26 +113,26 @@ At this point, the `WSGIApplication` instance now holds a fully initialized conf
 
 ## Loading and Overriding User Configuration
 
-After default configuration is established, [load_config()](./source_ref/1_startup_&_config_load_code.md#base-class-load_config-method) is executed.
+After default configuration is established, [load_config()](./source_ref/base_classes.md#base-class-load_config-method) is executed.
 
 The purpose of this method is described in Gunicorn’s own documentation:
 
 > This method is used to load the configuration from one or several input(s): custom command line, configuration file. You have to override this method in your class.
 
-`WSGIApplication` overrides [load_config()](./source_ref/1_startup_&_config_load_code.md#wsgiapplication-class-load_config-method) and calls [super().load_config()](./source_ref/1_startup_&_config_load_code.md#application-class-load_config-method) to reuse the implementation provided by `Application`.
+`WSGIApplication` overrides [load_config()](./source_ref/wsgi.md#wsgiapplication-class-load_config-method) and calls [super().load_config()](./source_ref/base_classes.md#application-class-load_config-method) to reuse the implementation provided by `Application`.
 
 [Remember the class hierarchy?](#class-hierarchy-involved)
 
-So what does [load_config()](./source_ref/1_startup_&_config_load_code.md#wsgiapplication-class-load_config-method) actually do?
+So what does [load_config()](./source_ref/wsgi.md#wsgiapplication-class-load_config-method) actually do?
 
 First, it constructs the default CLI argument parser using Python’s built-in `argparse`.
 This parser is dynamically built to include **all available Gunicorn settings**.
 
-Next, it optionally calls an [init()](./source_ref/1_startup_&_config_load_code.md#base-class-init-method) method.
+Next, it optionally calls an [init()](./source_ref/base_classes.md#base-class-init-method) method.
 
 This allows subclasses to apply custom logic.
 
-In the case of `WSGIApplication`, the [init()](./source_ref/1_startup_&_config_load_code.md#wsgiapplication-class-init-method) method extracts the application path you provide in the CLI (`module:callable`) and stores it in an attribute called `app_uri`.
+In the case of `WSGIApplication`, the [init()](./source_ref/wsgi.md#wsgiapplication-class-init-method) method extracts the application path you provide in the CLI (`module:callable`) and stores it in an attribute called `app_uri`.
 
 After that, Gunicorn checks for configuration overrides from multiple sources, applied in increasing order of priority:
 
@@ -143,7 +143,7 @@ After that, Gunicorn checks for configuration overrides from multiple sources, a
 
 If provided, these values override the defaults loaded earlier.
 
-At the end of [load_config()](./source_ref/1_startup_&_config_load_code.md#wsgiapplication-class-load_config-method), the `cfg.settings` dictionary becomes the **source of truth** for the rest of the application lifecycle.
+At the end of [load_config()](./source_ref/wsgi.md#wsgiapplication-class-load_config-method), the `cfg.settings` dictionary becomes the **source of truth** for the rest of the application lifecycle.
 
 Every subsequent phase — including arbiter creation, worker spawning, and request handling — reads configuration values from this object.
 

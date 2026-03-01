@@ -1,6 +1,6 @@
 ## Parser `__init__` method
 
-**Path:** `gunicorn.http.parser.RequestParser.__init__` [Full source code](./request-parser.py)
+**Path:** `gunicorn.http.parser.RequestParser.__init__` [Full file source code](./request-parser.py)
 
 ```python
 def __init__(self, cfg, source, source_addr):
@@ -19,7 +19,7 @@ def __init__(self, cfg, source, source_addr):
 
 ## Parser `__next__` method
 
-**Path:** `gunicorn.http.parser.RequestParser.__next__` [Full source code](./request-parser.py)
+**Path:** `gunicorn.http.parser.RequestParser.__next__` [Full file source code](./request-parser.py)
 
 ```python
 def __next__(self):

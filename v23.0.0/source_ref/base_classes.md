@@ -1,20 +1,6 @@
-## Run function
-
-**Path:** `gunicorn.app.wsgiapp` [Full source code](./wsgi.py) 
-
-```python
-def run(prog=None):
-    """\
-    The ``gunicorn`` command line runner for launching Gunicorn with
-    generic WSGI applications.
-    """
-    from gunicorn.app.wsgiapp import WSGIApplication
-    WSGIApplication("%(prog)s [OPTIONS] [APP_MODULE]", prog=prog).run()
-```
-
 ## Base class `__init__` method
 
-**Path:** `gunicorn.app.base.BaseApplication.__init__` [Full source code](./base_classes.py) 
+**Path:** `gunicorn.app.base.BaseApplication.__init__` [Full file source code](./base_classes.py) 
 
 ```python
 def __init__(self, usage=None, prog=None):
@@ -28,7 +14,7 @@ def __init__(self, usage=None, prog=None):
 
 ## Base class `do_load_config` method
 
-**Path:** `gunicorn.app.base.BaseApplication.do_load_config` [Full source code](./base_classes.py) 
+**Path:** `gunicorn.app.base.BaseApplication.do_load_config` [Full file source code](./base_classes.py) 
 
 ```python
 def do_load_config(self):
@@ -46,7 +32,7 @@ def do_load_config(self):
 
 ## Base class `load_default_config` method
 
-**Path:** `gunicorn.app.base.BaseApplication.load_default_config` [Full source code](./base_classes.py) 
+**Path:** `gunicorn.app.base.BaseApplication.load_default_config` [Full file source code](./base_classes.py) 
 
 ```python
 def load_default_config(self):
@@ -57,7 +43,7 @@ def load_default_config(self):
 
 ## Base class `load_config` method
 
-**Path:** `gunicorn.app.base.BaseApplication.load_config` [Full source code](./base_classes.py) 
+**Path:** `gunicorn.app.base.BaseApplication.load_config` [Full file source code](./base_classes.py) 
 
 ```python
 def load_config(self):
@@ -69,26 +55,9 @@ def load_config(self):
     raise NotImplementedError
 ```
 
-
-## WSGIApplication class `load_config` method
-
-**Path:** `gunicorn.app.wsgiapp.WSGIApplication.load_config` [Full source code](./wsgi.py)
-
-```python
-def load_config(self):
-    super().load_config()
-
-    if self.app_uri is None:
-        if self.cfg.wsgi_app is not None:
-            self.app_uri = self.cfg.wsgi_app
-        else:
-            raise ConfigError("No application module specified.")
-```
-
-
 ## Application class `load_config` method
 
-**Path:** `gunicorn.app.base.Application.load_config` [Full source code](./base_classes.py) 
+**Path:** `gunicorn.app.base.Application.load_config` [Full file source code](./base_classes.py) 
 
 ```python
 def load_config(self):
@@ -142,7 +111,7 @@ def load_config(self):
 
 ## Base class `init` method
 
-**Path:** `gunicorn.app.base.BaseApplication.init` [Full source code](./base_classes.py) 
+**Path:** `gunicorn.app.base.BaseApplication.init` [Full file source code](./base_classes.py) 
 
 ```python
 def init(self, parser, opts, args):
@@ -150,32 +119,58 @@ def init(self, parser, opts, args):
 ```
 
 
-## WSGIApplication class `init` method
+## Application class `run` method
 
-**Path:** `gunicorn.app.wsgiapp.WSGIApplication.init` [Full source code](./wsgi.py)
+**Path:** `gunicorn.app.base.Application.run` [Full file source code](./base_classes.py)
 
 ```python
-def init(self, parser, opts, args):
-    self.app_uri = None
+def run(self):
+    if self.cfg.print_config:
+        print(self.cfg)
 
-    if opts.paste:
-        from .pasterapp import has_logging_config
+    if self.cfg.print_config or self.cfg.check_config:
+        try:
+            self.load()
+        except Exception:
+            msg = "\nError while loading the application:\n"
+            print(msg, file=sys.stderr)
+            traceback.print_exc()
+            sys.stderr.flush()
+            sys.exit(1)
+        sys.exit(0)
 
-        config_uri = os.path.abspath(opts.paste)
-        config_file = config_uri.split('#')[0]
+    if self.cfg.spew:
+        debug.spew()
 
-        if not os.path.exists(config_file):
-            raise ConfigError("%r not found" % config_file)
+    if self.cfg.daemon:
+        if os.environ.get('NOTIFY_SOCKET'):
+            msg = "Warning: you shouldn't specify `daemon = True`" \
+                    " when launching by systemd with `Type = notify`"
+            print(msg, file=sys.stderr, flush=True)
 
-        self.cfg.set("default_proc_name", config_file)
-        self.app_uri = config_uri
+        util.daemonize(self.cfg.enable_stdio_inheritance)
 
-        if has_logging_config(config_file):
-            self.cfg.set("logconfig", config_file)
+    # set python paths
+    if self.cfg.pythonpath:
+        paths = self.cfg.pythonpath.split(",")
+        for path in paths:
+            pythonpath = os.path.abspath(path)
+            if pythonpath not in sys.path:
+                sys.path.insert(0, pythonpath)
 
-        return
+    super().run()
+```
 
-    if len(args) > 0:
-        self.cfg.set("default_proc_name", args[0])
-        self.app_uri = args[0]
+## Base class `run` method
+
+**Path:** `gunicorn.app.base.BaseApplication.run` [Full file source code](./base_classes.py)
+
+```python
+def run(self):
+    try:
+        Arbiter(self).run()
+    except RuntimeError as e:
+        print("\nError: %s\n" % e, file=sys.stderr)
+        sys.stderr.flush()
+        sys.exit(1)
 ```

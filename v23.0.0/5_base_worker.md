@@ -9,7 +9,7 @@ This is where Gunicorn transitions from *process management* to *application ser
 When Gunicorn creates a new worker process, the following sequence occurs:
 
 * The worker class is instantiated in the master process.
-* After [fork()](./source_ref/3_server_init_code.md#arbiter-class-spawn_worker-method), the worker’s [init_process()](./source_ref/base_worker.md#base-worker-init_process-method) method is executed inside the child process.
+* After [fork()](./source_ref/arbiter.md#arbiter-class-spawn_worker-method), the worker’s [init_process()](./source_ref/base_worker.md#base-worker-init_process-method) method is executed inside the child process.
 * [init_process()](./source_ref/base_worker.md#base-worker-init_process-method)  performs setup and finally calls the worker’s `run()` method.
 * The worker enters its main loop and begins accepting client connections.
 

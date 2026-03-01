@@ -41,7 +41,7 @@ In particular, it may be useful if you:
 * want to learn from a real-world, battle-tested codebase,
 * enjoy reading source code and understanding *why* certain architectural decisions were made.
 
-It is a **guided walkthrough of the code**, focused on structure, flow, and design choices.
+It is not a step-by-step tutorial, but rather a **guided walkthrough of the code**, focused on structure, flow, and design choices.
 
 ---
 

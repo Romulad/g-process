@@ -1,6 +1,6 @@
 ## Sync worker `run` method
 
-**Path:** `gunicorn.workers.sync.SyncWorker.run` [Full source code](./sync_worker.py)
+**Path:** `gunicorn.workers.sync.SyncWorker.run` [Full file source code](./sync_worker.py)
 
 ```python
 def run(self):
@@ -22,7 +22,7 @@ def run(self):
 
 ## Sync worker `run_for_multiple` method
 
-**Path:** `gunicorn.workers.sync.SyncWorker.run_for_multiple` [Full source code](./sync_worker.py)
+**Path:** `gunicorn.workers.sync.SyncWorker.run_for_multiple` [Full file source code](./sync_worker.py)
 
 ```python
 def run_for_multiple(self, timeout):
@@ -53,7 +53,7 @@ def run_for_multiple(self, timeout):
 
 ## Sync worker `run_for_one` method
 
-**Path:** `gunicorn.workers.sync.SyncWorker.run_for_one` [Full source code](./sync_worker.py)
+**Path:** `gunicorn.workers.sync.SyncWorker.run_for_one` [Full file source code](./sync_worker.py)
 
 ```python
 def run_for_one(self, timeout):
@@ -89,7 +89,7 @@ def run_for_one(self, timeout):
 
 ## Sync worker `accept` method
 
-**Path:** `gunicorn.workers.sync.SyncWorker.accept` [Full source code](./sync_worker.py)
+**Path:** `gunicorn.workers.sync.SyncWorker.accept` [Full file source code](./sync_worker.py)
 
 ```python
 def accept(self, listener):
@@ -102,7 +102,7 @@ def accept(self, listener):
 
 ## Sync worker `handle` method
 
-**Path:** `gunicorn.workers.sync.SyncWorker.handle` [Full source code](./sync_worker.py)
+**Path:** `gunicorn.workers.sync.SyncWorker.handle` [Full file source code](./sync_worker.py)
 
 ```python
 def handle(self, listener, client, addr):
@@ -143,7 +143,7 @@ def handle(self, listener, client, addr):
 
 ## Sync worker `handle_request` method
 
-**Path:** `gunicorn.workers.sync.SyncWorker.handle_request` [Full source code](./sync_worker.py)
+**Path:** `gunicorn.workers.sync.SyncWorker.handle_request` [Full file source code](./sync_worker.py)
 
 ```python
 def handle_request(self, listener, req, client, addr):

@@ -8,7 +8,7 @@ Let’s walk through what each handler does and how it operates internally.
 
 ## `SIGHUP` — Reload Configuration
 
-[Handler](./source_ref/4_signal_handling_code.md#sighup-signal-handler)
+[Handler](./source_ref/arbiter.md#sighup-signal-handler)
 
 This signal tells Gunicorn to reload its configuration without stopping the service.
 
@@ -17,7 +17,7 @@ This signal tells Gunicorn to reload its configuration without stopping the serv
 * The master restores environment variables to their original state using `WsgiAppInstance.cfg.env_orig`.
   This removes any variables that were injected during runtime.
 
-* Gunicorn reloads configuration from scratch by calling [do_load_config()](./source_ref/1_startup_&_config_load_code.md#base-class-do_load_config-method) again — essentially repeating the initialization phase that happens at startup.
+* Gunicorn reloads configuration from scratch by calling [do_load_config()](./source_ref/base_classes.md#base-class-do_load_config-method) again — essentially repeating the initialization phase that happens at startup.
 
 * The [Arbiter](./source_ref/arbiter.py) instance is updated to reflect the new configuration:
 
@@ -52,7 +52,7 @@ This ensures **zero downtime reloads**.
 
 ## `SIGQUIT` — Immediate Shutdown
 
-[Handler](./source_ref/4_signal_handling_code.md#sigquit-signal-handler)
+[Handler](./source_ref/arbiter.md#sigquit-signal-handler)
 
 This signal triggers a controlled but quick shutdown.
 
@@ -76,7 +76,7 @@ During shutdown:
 
 ## `SIGINT` — Interrupt (Ctrl+C)
 
-[Handler](./source_ref/4_signal_handling_code.md#sigint-signal-handler)
+[Handler](./source_ref/arbiter.md#sigint-signal-handler)
 
 Behavior is identical to `SIGQUIT`.
 
@@ -86,7 +86,7 @@ Workers receive `SIGQUIT`, the master waits for the graceful timeout, and then f
 
 ## `SIGTERM` — Graceful Shutdown
 
-[Handler](./source_ref/4_signal_handling_code.md#sigterm-signal-handler)
+[Handler](./source_ref/arbiter.md#sigterm-signal-handler)
 
 Very similar to `SIGQUIT`, but workers receive `SIGTERM` instead.
 
@@ -98,7 +98,7 @@ Very similar to `SIGQUIT`, but workers receive `SIGTERM` instead.
 
 ## `SIGTTIN` — Increase Worker Count
 
-[Handler](./source_ref/4_signal_handling_code.md#sigttin-signal-handler)
+[Handler](./source_ref/arbiter.md#sigttin-signal-handler)
 
 This signal scales the server up.
 
@@ -110,7 +110,7 @@ This signal scales the server up.
 
 ## `SIGTTOU` — Decrease Worker Count
 
-[Handler](./source_ref/4_signal_handling_code.md#sigttou-signal-handler)
+[Handler](./source_ref/arbiter.md#sigttou-signal-handler)
 
 This signal scales the server down.
 
@@ -121,7 +121,7 @@ This signal scales the server down.
 
 ## `SIGUSR1` — Reopen Log Files
 
-[Handler](./source_ref/4_signal_handling_code.md#sigusr1-signal-handler)
+[Handler](./source_ref/arbiter.md#sigusr1-signal-handler)
 
 Used primarily during log rotation.
 
@@ -136,7 +136,7 @@ This allows safe log rotation without stopping the server.
 
 ## `SIGUSR2` — Zero-Downtime Binary Upgrade
 
-[Handler](./source_ref/4_signal_handling_code.md#sigusr2-signal-handler)
+[Handler](./source_ref/arbiter.md#sigusr2-signal-handler)
 
 It allows starting a new Gunicorn master process while keeping the old one alive.
 
@@ -184,7 +184,7 @@ This enables **zero-downtime upgrades**.
 
 ## `SIGWINCH` — Stop Workers (Daemon Mode Only)
 
-[Handler](./source_ref/4_signal_handling_code.md#sigwinch-signal-handler)
+[Handler](./source_ref/arbiter.md#sigwinch-signal-handler)
 
 This signal is handled only when Gunicorn runs with `--daemon`.
 
@@ -200,7 +200,7 @@ The master process continues running, but no workers remain — meaning no reque
 
 ## `SIGCHLD` — Child Process Exit
 
-[Handler](./source_ref/4_signal_handling_code.md#sigchld-signal-handler)
+[Handler](./source_ref/arbiter.md#sigchld-signal-handler)
 
 This signal is sent by the operating system when a child process exits.
 

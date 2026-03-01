@@ -2,7 +2,7 @@
 
 **Note:** **WsgiAppInstance** is the instance from [WSGIApplication](./source_ref/wsgi.py) initialization from [previous step](./1_startup_&_config_load.md)
 
-At this stage, the `WsgiAppInstance` has already been created and its [run()](./source_ref/2_arbiter_creation_code.md#application-class-run-method) method is invoked.
+At this stage, the `WsgiAppInstance` has already been created and its [run()](./source_ref/base_classes.md#application-class-run-method) method is invoked.
 
 The responsibility now shifts from *parsing and validating options* to *bootstrapping the server runtime*.
 
@@ -12,9 +12,9 @@ Let’s walk through what happens.
 
 ## Applying Configuration and Preparing the Runtime
 
-When [WsgiAppInstance.run()](./source_ref/2_arbiter_creation_code.md#application-class-run-method) executes, Gunicorn performs several important actions before any worker process is spawned.
+When [WsgiAppInstance.run()](./source_ref/base_classes.md#application-class-run-method) executes, Gunicorn performs several important actions before any worker process is spawned.
 
-[See also base application run method](./source_ref/2_arbiter_creation_code.md#base-class-run-method)
+[See also base application run method](./source_ref/base_classes.md#base-class-run-method)
 
 
 ### 🔎 Configuration-related behaviors
@@ -59,10 +59,10 @@ At this moment, the `WsgiAppInstance` contains:
 * `callable` → `None`
 * `prog` → `None`
 * `logger` → `None`
-* `app_uri` → `app:app` (set during [load_config()](./source_ref/1_startup_&_config_load_code.md#wsgiapplication-class-load_config-method) inside [init()](./source_ref/1_startup_&_config_load_code.md#wsgiapplication-class-init-method) if using `gunicorn app:app`)
+* `app_uri` → `app:app` (set during [load_config()](./source_ref/wsgi.md#wsgiapplication-class-load_config-method) inside [init()](./source_ref/wsgi.md#wsgiapplication-class-init-method) if using `gunicorn app:app`)
 
 
-### What Happens Inside [Arbiter.__init__](./source_ref/2_arbiter_creation_code.md#arbiter-class-__init__-method)
+### What Happens Inside [Arbiter.__init__](./source_ref/arbiter.md#arbiter-class-__init__-method)
 
 During initialization, Gunicorn prepares the master process state.
 

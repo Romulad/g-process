@@ -1,6 +1,6 @@
 # From Arbiter Initialization to Server Boot
 
-Once the [Arbiter](./source_ref/arbiter.py) instance has been created, its [run()](./source_ref/3_server_init_code.md#arbiter-class-run-method) method is invoked.
+Once the [Arbiter](./source_ref/arbiter.py) instance has been created, its [run()](./source_ref/arbiter.md#arbiter-class-run-method) method is invoked.
 
 This is the moment you see:
 
@@ -12,9 +12,9 @@ From here, the master process begins coordinating everything.
 
 ---
 
-## What Happens Inside [Arbiter.run()](./source_ref/3_server_init_code.md#arbiter-class-run-method)
+## What Happens Inside [Arbiter.run()](./source_ref/arbiter.md#arbiter-class-run-method)
 
-The [run()](./source_ref/3_server_init_code.md#arbiter-class-run-method) method is responsible for preparing the master process, binding sockets, spawning workers, and supervising them throughout the server’s lifetime.
+The [run()](./source_ref/arbiter.md#arbiter-class-run-method) method is responsible for preparing the master process, binding sockets, spawning workers, and supervising them throughout the server’s lifetime.
 
 It performs the following major operations.
 
@@ -87,9 +87,9 @@ Socket sources may include:
 Gunicorn automatically determines the socket type (TCP, IPv6, or Unix socket).
 Socket wrapper classes are located in [gunicorn.sock](./source_ref/sock.py):
 
-* [TCPSocket](./source_ref/3_server_init_code.md#tcpsocket-class)
-* [TCP6Socket](./source_ref/3_server_init_code.md#tcp6socket-class)
-* [UnixSocket](./source_ref/3_server_init_code.md#unixsocket-class)
+* [TCPSocket](./source_ref/sock.md#tcpsocket-class)
+* [TCP6Socket](./source_ref/sock.md#tcp6socket-class)
+* [UnixSocket](./source_ref/sock.md#unixsocket-class)
 
 If SSL is configured, Gunicorn validates:
 
@@ -125,7 +125,7 @@ The master process is now fully initialized.
 
 ### Spawning Worker Processes
 
-Still inside [Arbiter.run()](./source_ref/3_server_init_code.md#arbiter-class-run-method), Gunicorn proceeds to create worker processes.
+Still inside [Arbiter.run()](./source_ref/arbiter.md#arbiter-class-run-method), Gunicorn proceeds to create worker processes.
 
 If `--workers 4` is specified, four child processes will be forked.
 
@@ -177,9 +177,9 @@ You see message like:
 
 * Executes the `post_fork` server hook.
 
-* Calls the worker’s [init_process()](./source_ref/3_server_init_code.md#base-worker-init_process-method) method.
+* Calls the worker’s [init_process()](./source_ref/base_worker.md#base-worker-init_process-method) method.
 
-Inside [init_process()](./source_ref/3_server_init_code.md#base-worker-init_process-method):
+Inside [init_process()](./source_ref/base_worker.md#base-worker-init_process-method):
 
 * The worker sets up its internal state.
 * Loads the WSGI application (if not preloaded).

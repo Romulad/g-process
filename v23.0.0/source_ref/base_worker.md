@@ -1,6 +1,6 @@
 ## Base worker `__init__` method
 
-**Path:** `gunicorn.workers.base.Worker.__init__` [Full source code](./worker.py)
+**Path:** `gunicorn.workers.base.Worker.__init__` [Full file source code](./base_worker.py)
 
 ```python
 def __init__(self, age, ppid, sockets, app, timeout, cfg, log):
@@ -36,7 +36,7 @@ def __init__(self, age, ppid, sockets, app, timeout, cfg, log):
 
 ## Base worker init_process method
 
-**Path:** `gunicorn.workers.base.Worker.init_process` [Full source code](./worker.py)
+**Path:** `gunicorn.workers.base.Worker.init_process` [Full file source code](./base_worker.py)
 
 ```python
 def init_process(self):

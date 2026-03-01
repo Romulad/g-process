@@ -1,6 +1,6 @@
 ## WSGI object create
 
-**Path:** `gunicorn.http.wsgi.create` [Full source code](./wsgi_object.py)
+**Path:** `gunicorn.http.wsgi.create` [Full file source code](./wsgi_object.py)
 
 ```python
 def create(req, sock, client, server, cfg):
@@ -96,7 +96,7 @@ def create(req, sock, client, server, cfg):
 
 ## WSGI start_response
 
-**Path:** `gunicorn.http.wsgi.Response.start_response` [Full source code](./wsgi_object.py)
+**Path:** `gunicorn.http.wsgi.Response.start_response` [Full file source code](./wsgi_object.py)
 
 ```python
 def start_response(self, status, headers, exc_info=None):
@@ -127,7 +127,7 @@ def start_response(self, status, headers, exc_info=None):
 
 ## WSGI FileWrapper
 
-**Path:** `gunicorn.http.wsgi.FileWrapper` [Full source code](./wsgi_object.py)
+**Path:** `gunicorn.http.wsgi.FileWrapper` [Full file source code](./wsgi_object.py)
 
 ```python
 class FileWrapper:
