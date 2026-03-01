@@ -258,7 +258,7 @@ Header validation includes:
 
 If no headers are present, parsing stops immediately.
 
-Any unread bytes remain buffered in the unreader.
+Any unused bytes remain buffered in the unreader.
 
 ---
 

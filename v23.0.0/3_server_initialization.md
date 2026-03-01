@@ -131,7 +131,7 @@ If `--workers 4` is specified, four child processes will be forked.
 
 If `setproctitle` is installed, Gunicorn sets a readable process title.
 
-**Each worker follows this lifecycle:**
+**Each worker follows this creation steps:**
 
 ---
 

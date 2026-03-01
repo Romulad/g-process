@@ -30,7 +30,11 @@ Understanding this hierarchy is important because execution flows **from the mos
 
 ## WSGIApplication Initialization
 
-When `WSGIApplication` is instantiated, its initialization enters the `__init__` method of `BaseApplication`.
+After you run the gunicorn command to start an application, the `WSGIApplication` class is instantiated (see [run()](./source_ref/wsgi.md#run-function)). 
+
+Execution begins there.
+
+Its initialization enters the `__init__` method of `BaseApplication`.
 
 This is where the foundational state of the application instance is created.
 
