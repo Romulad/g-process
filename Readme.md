@@ -11,6 +11,12 @@ Gunicorn is downloaded **millions of times every month** and sits at the core of
 
 ---
 
+## Getting started
+
+* 📘 **[Gunicorn 23.0.0 internals](/v23.0.0/Readme.md)**
+
+---
+
 ## Why this project exists
 
 This work started from a simple curiosity:
@@ -69,12 +75,6 @@ If you find this documentation useful or learn something new from it, consider *
 It helps others discover the project and motivates me too :)
 
 Thank you for reading — and happy code diving 🚀
-
----
-
-## Getting started
-
-* 📘 **[Gunicorn 23.0.0 internals](/v23.0.0/Readme.md)**
 
 ---
 
